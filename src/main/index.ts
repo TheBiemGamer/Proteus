@@ -53,6 +53,16 @@ app.whenReady().then(() => {
     return pluginManager.getPlugins()
   })
 
+  // run commands
+  ipcMain.handle('run-extension-command', async (_event, gameId, command, args) => {
+    try {
+      return await pluginManager.runCommand(gameId, command, ...args)
+    } catch (e: any) {
+      console.error('Plugin Execution Failed:', e)
+      throw e
+    }
+  })
+
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
   // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils

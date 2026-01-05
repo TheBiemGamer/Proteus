@@ -1,11 +1,13 @@
 import fs from 'fs'
 import path from 'path'
-import { NodeVM, VMScript } from 'vm2'
+import { NodeVM } from 'vm2'
 import { IGameExtension } from '../shared/types'
 
 export class PluginManager {
   private plugins: Map<string, IGameExtension> = new Map()
   private pluginsDir: string
+
+  private activeGamePath: string | null = null
 
   constructor(appPath: string) {
     // looks for 'plugins' folder next to executable
@@ -15,6 +17,16 @@ export class PluginManager {
     }
   }
 
+  // helper to check if path is in game folder
+  private isSafePath(targetPath: string): boolean {
+    if (!this.activeGamePath) return false
+
+    const resolvedTarget = path.resolve(targetPath)
+    const resolvedSafe = path.resolve(this.activeGamePath)
+
+    return resolvedTarget.startsWith(resolvedSafe)
+  }
+
   // plugin sandbox
   private createSandbox() {
     return {
@@ -22,12 +34,66 @@ export class PluginManager {
       manager: {
         // safe file manager
         fileExists: (filePath) => fs.existsSync(filePath),
+        isDirectory: (filePath) => {
+          try {
+            return fs.lstatSync(filePath).isDirectory()
+          } catch {
+            return false
+          }
+        },
+        readDir: (dirPath) => {
+          try {
+            return fs.readdirSync(dirPath)
+          } catch {
+            return []
+          }
+        },
+        copyFile: (src, dest) => {
+          if (!this.isSafePath(dest)) {
+            console.error(`BLOCKED: Plugin tried to write outside game folder: ${dest}`)
+            throw new Error('Access Denied: You can only write inside the game folder.')
+          }
+
+          console.log(`[HOST] Copying ${src} -> ${dest}`)
+
+          const destDir = path.dirname(dest)
+          if (!fs.existsSync(destDir)) {
+            fs.mkdirSync(destDir, { recursive: true })
+          }
+          fs.copyFileSync(src, dest)
+        },
         writeConfig: (filePath, content) => {
+          if (!this.isSafePath(filePath)) {
+            console.error(`BLOCKED: Plugin tried to write outside game folder: ${filePath}`)
+            throw new Error('Access Denied: You can only write inside the game folder.')
+          }
           console.log('Writing config')
           // this should be changed to be restricted to inside game folder
           fs.writeFileSync(filePath, content)
         }
       }
+    }
+  }
+
+  // run commands safe
+  async runCommand(pluginId: string, command: string, ...args: any[]) {
+    const plugin = this.plugins.get(pluginId)
+    if (!plugin) throw new Error(`Plugin ${pluginId} not found`)
+    if (typeof plugin[command] !== 'function') throw new Error(`Command ${command} not found`)
+
+    let gamePath: string | null = null
+
+    if (command === 'deployMod' && args.length >= 2) {
+      gamePath = args[1]
+    }
+
+    this.activeGamePath = gamePath
+
+    try {
+      console.log(`[EXEC] Running ${command} on ${pluginId} (Safe Scope: ${gamePath || 'None'})`)
+      return await plugin[command](...args)
+    } finally {
+      this.activeGamePath = null
     }
   }
 
