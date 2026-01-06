@@ -1,3 +1,5 @@
+<img src="./assets/image.png" alt="drawing" style="width:1200px;"/>
+
 # ModManager
 
 > [!IMPORTANT]
