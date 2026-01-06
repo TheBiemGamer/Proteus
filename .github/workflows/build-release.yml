@@ -54,13 +54,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG_NAME: v${{ steps.package-version.outputs.VERSION }}
         run: |
-          gh release delete $env:TAG_NAME --cleanup-tag --yes 2>$null
-          if ($LASTEXITCODE -eq 0) {
-            Write-Host "Deleted existing release $env:TAG_NAME"
-          } else {
-            Write-Host "Release $env:TAG_NAME did not exist or could not be deleted"
-            $global:LASTEXITCODE = 0
-          }
+          # Redirect stderr to stdout to avoid NativeCommandError in PS 5.1
+          gh release delete $env:TAG_NAME --cleanup-tag --yes 2>&1 | Write-Host
+          # Always exit 0, even if the release didn't exist
+          $global:LASTEXITCODE = 0
 
       - name: Create Release
         uses: softprops/action-gh-release@v1

@@ -8,6 +8,10 @@ module.exports.default = {
   steamAppId: '582010',
   modFileExtensions: ['zip', 'rar', '7z', 'mod'],
   iconUrl: 'https://cdn2.steamgriddb.com/icon_thumb/c95d62c68196b2d0c1c1de8c7eeb6d50.png',
+  theme: {
+    accent: '20, 184, 166', // Teal
+    bgStart: '6, 20, 25'
+  },
 
   detect: async (candidates) => {
     const path = require('path')

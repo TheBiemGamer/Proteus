@@ -19,15 +19,15 @@ export function ToastContainer({
         <div
           key={toast.id}
           className={`
-            pointer-events-auto transform transition-all duration-300 ease-out translate-x-0 opacity-100 flex items-center p-4 rounded-lg shadow-lg min-w-[300px] border
+            pointer-events-auto transform god-transition translate-x-0 opacity-100 flex items-center p-4 rounded-xl shadow-2xl min-w-[300px] border backdrop-blur-md
             ${
               toast.type === 'success'
-                ? 'bg-gray-900/95 border-emerald-500/50 text-emerald-100'
+                ? 'bg-emerald-950/80 border-emerald-500/30 text-emerald-100 shadow-emerald-900/20'
                 : toast.type === 'error'
-                  ? 'bg-gray-900/95 border-rose-500/50 text-rose-100'
+                  ? 'bg-rose-950/80 border-rose-500/30 text-rose-100 shadow-rose-900/20'
                   : toast.type === 'warning'
-                    ? 'bg-gray-900/95 border-yellow-500/50 text-yellow-100'
-                    : 'bg-gray-900/95 border-blue-500/50 text-blue-100'
+                    ? 'bg-yellow-950/80 border-yellow-500/30 text-yellow-100 shadow-yellow-900/20'
+                    : 'bg-blue-950/80 border-blue-500/30 text-blue-100 shadow-blue-900/20'
             }
           `}
         >

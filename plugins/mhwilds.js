@@ -8,6 +8,10 @@ module.exports.default = {
   executable: 'MonsterHunterWilds.exe',
   steamAppId: '2246340',
   modFileExtensions: ['zip', 'rar', '7z', 'pak', 'lua', 'exe', 'dll'],
+  theme: {
+    accent: '16, 185, 129', // Emerald
+    bgStart: '6, 25, 20'
+  },
 
   getToolButtons: async (gamePath) => {
     if (!gamePath) return []

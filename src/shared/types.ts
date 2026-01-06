@@ -12,6 +12,11 @@ export interface IGameExtension {
     originalZipPath: string
   ) => Promise<boolean | { success: boolean; note?: string }>
   toggleLoader?: (enable: boolean) => Promise<boolean>
+  theme?: {
+    accent: string
+    bgStart: string
+    bgEnd?: string
+  }
 }
 
 export interface IMod {
