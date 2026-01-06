@@ -1,13 +1,20 @@
 export interface IGameExtension {
-  id: string // eg 'skyrim-se'
-  name: string // eg 'Skyrim Special Edition'
-  author: string // eg 'TheBiemGamer'
-  executable: string // eg 'SkyrimSE.exe'
-  version: string
+  id: string
+  name: string
+  executable: string
+  steamAppId?: string // Optional Steam App ID
+  detect: (candidates: string[]) => Promise<string | null>
+  install: (sourcePath: string, gamePath: string, originalZipPath: string) => Promise<boolean>
+  toggleLoader?: (enable: boolean) => Promise<boolean>
+}
 
-  // detect game function
-  detect(paths: string[]): Promise<string | null>
-
-  // deploy mod function
-  deployMod(modPath: string, gamePath: string): Promise<boolean>
+export interface IMod {
+  id: string
+  name: string
+  enabled: boolean
+  installDate: number
+  files: string[] // List of absolute paths installed
+  type: 'mod' | 'loader'
+  version?: string
+  nexusId?: string
 }

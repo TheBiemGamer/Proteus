@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -47,6 +47,7 @@ app.whenReady().then(() => {
 
   // load plugins
   pluginManager.loadPlugins()
+  pluginManager.autoDetectGames()
 
   // listen for list extentions
   ipcMain.handle('get-extensions', () => {
@@ -54,12 +55,106 @@ app.whenReady().then(() => {
   })
 
   // run commands
-  ipcMain.handle('run-extension-command', async (_event, gameId, command, args) => {
+  ipcMain.handle('run-extension-command', async (_event, gameId, command, ...args) => {
     try {
       return await pluginManager.runCommand(gameId, command, ...args)
     } catch (e: any) {
       console.error('Plugin Execution Failed:', e)
       throw e
+    }
+  })
+
+  ipcMain.handle('manage-game', async (_, gameId) => {
+    return await pluginManager.manageGame(gameId)
+  })
+
+  ipcMain.handle('install-mod-dialog', async (event, gameId) => {
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      filters: [{ name: 'Mods', extensions: ['zip', 'rar', '7z', 'mod'] }]
+    })
+
+    if (canceled || filePaths.length === 0) return false
+
+    try {
+      await pluginManager.installMod(gameId, filePaths[0])
+      return true
+    } catch (err) {
+      console.error(err)
+      return false
+    }
+  })
+
+  ipcMain.handle('get-mods', (event, gameId) => {
+    return pluginManager.getMods(gameId)
+  })
+
+  ipcMain.handle('toggle-mod', async (event, gameId, modId, enabled) => {
+    try {
+      if (enabled) {
+        return await pluginManager.enableMod(gameId, modId)
+      } else {
+        return await pluginManager.disableMod(gameId, modId)
+      }
+    } catch (e) {
+      console.error(e)
+      return false
+    }
+  })
+
+  ipcMain.handle('delete-mod', async (_, gameId, modId) => {
+      try {
+          return await pluginManager.deleteMod(gameId, modId)
+      } catch (e) {
+          console.error(e)
+          return false
+      }
+  })
+
+  ipcMain.handle('disable-all-mods', async (_, gameId) => {
+    try {
+        return await pluginManager.disableAllMods(gameId)
+    } catch (e) {
+        console.error(e)
+        return false
+    }
+  })
+
+  ipcMain.handle('install-extension-dialog', async (event) => {
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      filters: [{ name: 'Mod Manager Extensions', extensions: ['modmanager', 'zip'] }]
+    })
+
+    if (canceled || filePaths.length === 0) return false
+
+    try {
+      await pluginManager.installExtension(filePaths[0])
+      return true
+    } catch (err) {
+      console.error('Extension install failed', err)
+      return false
+    }
+  })
+
+  ipcMain.handle('export-extension', async (event, gameId) => {
+    try {
+      const buffer = await pluginManager.exportExtension(gameId)
+      if (!buffer) return false
+
+      // Ask user where to save
+      const { canceled, filePath } = await dialog.showSaveDialog({
+        defaultPath: `${gameId}.modmanager`,
+        filters: [{ name: 'Mod Manager Extension', extensions: ['modmanager'] }]
+      })
+
+      if (canceled || !filePath) return false
+
+      await require('fs').promises.writeFile(filePath, buffer)
+      return true
+    } catch (err) {
+      console.error('Extension export failed', err)
+      return false
     }
   })
 
@@ -87,6 +182,3 @@ app.on('window-all-closed', () => {
     app.quit()
   }
 })
-
-// In this file you can include the rest of your app's specific main process
-// code. You can also put them in separate files and require them here.
