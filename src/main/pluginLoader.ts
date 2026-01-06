@@ -628,10 +628,14 @@ export class PluginManager {
       const result = await this.runCommand(gameId, 'checkRequirements', this.gamePaths[gameId])
       if (result && typeof result === 'object' && 'valid' in result) {
         // Clone to plain object to avoid IPC cloning errors with VM2 proxies
-        // We explicitly map the links array if present to ensure it's a clean array of plain objects
-        const links = Array.isArray(result.links)
-          ? result.links.map((l: any) => ({ text: l.text, url: l.url }))
-          : undefined
+        let links: any[] | undefined
+        if (result.links && typeof result.links.length === 'number') {
+          links = []
+          for (let i = 0; i < result.links.length; i++) {
+            const l = result.links[i]
+            links.push({ text: l.text, url: l.url })
+          }
+        }
 
         return {
           valid: result.valid,
