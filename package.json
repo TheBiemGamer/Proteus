@@ -5,6 +5,13 @@
   "main": "./out/main/index.js",
   "author": "thebiemgamer",
   "homepage": "https://electron-vite.org",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "electron-winstaller",
+      "esbuild"
+    ]
+  },
   "scripts": {
     "format": "prettier --write .",
     "lint": "eslint --cache .",
