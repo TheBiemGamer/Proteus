@@ -5,11 +5,7 @@
 > [!IMPORTANT]
 > **Status: Early Development** Proteus Mod Manager is currently in alpha. Expect bugs, breaking changes, and rapid iterations.
 
-Proteus is a modern, universal Mod Manager built with Electron, React, and TypeScript. Unlike traditional managers built for specific engines, Proteus is architected to be completely agnostic—supporting any game through a powerful, sandboxed plugin system.
-
-Proteus is named after the Greek sea god capable of assuming any form, this project stands for Universal Adaptability. Just as the god changes Shape to fit the situation, this manager transfroms its logic and interface to support anyt game through its plugin system.
-
----
+**Proteus** is a universal Mod Manager built with Electron, React, and TypeScript. Like it's namesake, the shape-shifting [Greek god](https://en.wikipedia.org/wiki/Proteus), it adapts its logic and interface to support any game via a powerful, sandboxed plugin system.
 
 ## Extension/Plugin Development Guide
 
@@ -212,8 +208,6 @@ pnpm run dev
 ```bash
 npm run build:win
 ```
-
----
 
 ##  Contributing
 

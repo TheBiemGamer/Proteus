@@ -11,6 +11,10 @@ module.exports.default = {
   executable: 'OakGame/Binaries/Win64/Borderlands3.exe',
   modFileExtensions: ['zip', 'rar', '7z', 'mod', 'bl3hotfix', 'pak', 'mp4'],
   iconUrl: 'https://cdn2.steamgriddb.com/icon/a3fb3740778d53b2d89b66c70066151b/32/256x256.png',
+  theme: {
+    accent: '249, 115, 22', // Orange
+    bgStart: '25, 15, 5'
+  },
 
   detect: async (candidates) => {
     const path = require('path')

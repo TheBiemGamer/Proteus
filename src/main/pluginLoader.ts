@@ -335,6 +335,20 @@ export class PluginManager {
           modSources = undefined
         }
 
+        let theme: { accent: string; bgStart: string; bgEnd?: string } | undefined
+        try {
+          const rawTheme = (plugin as any).theme
+          if (rawTheme) {
+            theme = {
+              accent: String(rawTheme.accent),
+              bgStart: String(rawTheme.bgStart),
+              bgEnd: rawTheme.bgEnd ? String(rawTheme.bgEnd) : undefined
+            }
+          }
+        } catch {
+          // ignore
+        }
+
         result.push({
           id,
           name,
@@ -344,6 +358,7 @@ export class PluginManager {
           steamAppId,
           iconUrl,
           modSources,
+          theme,
           toolButtons: []
         })
       }

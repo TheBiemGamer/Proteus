@@ -32,6 +32,11 @@ interface Game {
   iconUrl?: string
   toolButtons?: Array<{ label: string; action: string }>
   modSources?: Array<{ text: string; url: string }>
+  theme?: {
+    accent: string
+    bgStart: string
+    bgEnd?: string
+  }
 }
 
 interface Mod {
@@ -67,6 +72,28 @@ function App() {
   const [showSourcesMenu, setShowSourcesMenu] = useState(false)
   const [appVersion, setAppVersion] = useState<string>('')
   const [toasts, setToasts] = useState<Toast[]>([])
+
+  // Proteus Theme Logic
+  useEffect(() => {
+    if (!selectedGame) return
+
+    let accent = '59, 130, 246' // Default Blue
+    let bgStart = '17, 24, 39'
+    let bgEnd = '3, 7, 18'
+
+    const game = games.find((g) => g.id === selectedGame)
+    if (game && game.theme) {
+      accent = game.theme.accent
+      bgStart = game.theme.bgStart
+      if (game.theme.bgEnd) bgEnd = game.theme.bgEnd
+    }
+
+    const root = document.documentElement
+    root.style.setProperty('--theme-accent', accent)
+    root.style.setProperty('--theme-bg-start', bgStart)
+    // Keep end dark for depth
+    root.style.setProperty('--theme-bg-end', bgEnd)
+  }, [selectedGame, games])
 
   // UI States
   const [dragOver, setDragOver] = useState(false)
@@ -220,7 +247,8 @@ function App() {
         description: installPreview.meta.description,
         imageUrl: installPreview.meta.imageUrl,
         version: installPreview.meta.version,
-        nexusId: installPreview.meta.nexusId
+        nexusId: installPreview.meta.nexusId,
+        autoEnable: true
       }
 
       await (window as any).electron.installModDirect(currentGame.id, installPreview.file, options)
@@ -419,16 +447,20 @@ function App() {
 
   return (
     <div
-      className="flex h-screen bg-gray-950 text-gray-100 font-sans selection:bg-purple-500 selection:text-white relative"
+      className="flex h-screen overflow-hidden font-sans select-none p-4 gap-4 transition-colors duration-700 ease-in-out"
+      style={{
+        background:
+          'radial-gradient(circle at top right, rgb(var(--theme-bg-start)), rgb(var(--theme-bg-end)))'
+      }}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
       {dragOver && (
-        <div className="absolute inset-0 z-50 bg-blue-500/20 backdrop-blur-sm border-4 border-blue-500 border-dashed m-4 rounded-xl flex items-center justify-center pointer-events-none">
-          <div className="bg-gray-900 p-8 rounded-2xl shadow-2xl flex flex-col items-center animate-bounce">
+        <div className="absolute inset-4 z-50 rounded-2xl glass-panel bg-[rgb(var(--theme-accent))]/10 border-2 border-[rgb(var(--theme-accent))]/50 flex items-center justify-center animate-in fade-in duration-200 pointer-events-none">
+          <div className="glass-panel p-8 rounded-2xl border border-[rgb(var(--theme-accent))]/30 flex flex-col items-center">
             <svg
-              className="w-16 h-16 text-blue-400 mb-4"
+              className="w-16 h-16 text-[rgb(var(--theme-accent))] mb-4 animate-bounce"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -441,25 +473,29 @@ function App() {
               />
             </svg>
             <h3 className="text-2xl font-bold text-white">Drop to Install</h3>
+            <p className="text-gray-300 mt-2">Release to install archives</p>
           </div>
         </div>
       )}
       <ToastContainer toasts={toasts} removeToast={removeToast} />
-      {/* Sidebar */}
-      <div className="w-72 bg-gray-900 border-r border-gray-800 flex flex-col shadow-2xl z-10">
+      {/* Floating Dock */}
+      <aside className="w-20 lg:w-72 glass-dock rounded-2xl flex flex-col god-transition z-10">
         <div className="p-6">
           <h1
-            className="text-2xl font-black bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent tracking-tighter cursor-pointer"
+            className="hidden lg:block text-2xl font-black bg-gradient-to-r from-[rgb(var(--theme-accent))] to-white bg-clip-text text-transparent tracking-tighter cursor-pointer god-transition hover:opacity-80"
             onClick={() => setView('library')}
           >
             PROTEUS
           </h1>
-          <p className="text-xs text-gray-500 mt-1 uppercase tracking-widest font-semibold">
+          <p className="hidden lg:block text-xs text-[rgb(var(--theme-text-muted))] mt-1 uppercase tracking-widest font-semibold">
             {t.library}
           </p>
+          <div className="lg:hidden flex justify-center">
+            <span className="text-xl font-black text-[rgb(var(--theme-accent))]">P</span>
+          </div>
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-3 space-y-1.5 pt-1">
+        <nav className="flex-1 overflow-y-auto px-3 space-y-2 no-scrollbar">
           {games.map((g) => (
             <button
               key={g.id}
@@ -467,45 +503,45 @@ function App() {
                 setSelectedGame(g.id)
                 setView('library')
               }}
-              className={`group w-full flex items-center justify-between p-3 rounded-xl text-left transition-all duration-200 outline-none focus:ring-2 focus:ring-blue-500/50 ${
-                selectedGame === g.id && view === 'library'
-                  ? 'bg-gradient-to-br from-gray-800 to-gray-700 text-white shadow-lg border border-gray-700'
-                  : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200'
-              }`}
+              className={`group w-full flex items-center p-3 rounded-xl text-left god-transition outline-none god-hover
+                ${
+                  selectedGame === g.id && view === 'library'
+                    ? 'bg-[rgb(var(--theme-accent))] text-white shadow-lg shadow-[rgb(var(--theme-accent))]/20'
+                    : 'text-[rgb(var(--theme-text-muted))] hover:bg-white/5 hover:text-white'
+                }`}
             >
-              <div className="flex items-center space-x-3">
-                {/* Game Icon */}
-                {g.iconUrl ? (
-                  <img
-                    src={g.iconUrl}
-                    className="w-8 h-8 rounded-lg shadow-inner object-cover bg-gray-900"
-                  />
-                ) : (
+              <div className="flex items-center space-x-3 w-full">
+                <div className="relative shrink-0">
+                  {g.iconUrl ? (
+                    <img
+                      src={g.iconUrl}
+                      className="w-10 h-10 rounded-lg object-cover bg-black/20 god-transition group-hover:scale-105"
+                    />
+                  ) : (
+                    <div
+                      className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm shadow-inner god-transition ${
+                        selectedGame === g.id ? 'bg-white/20' : 'bg-white/5 group-hover:bg-white/10'
+                      }`}
+                    >
+                      {g.name.substring(0, 1)}
+                    </div>
+                  )}
                   <div
-                    className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs shadow-inner ${
-                      selectedGame === g.id ? 'bg-blue-600' : 'bg-gray-700 group-hover:bg-gray-600'
+                    className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-gray-900 ${
+                      g.detected ? 'bg-emerald-500' : 'bg-rose-500'
                     }`}
-                  >
-                    {g.name.substring(0, 1)}
-                  </div>
-                )}
-                <span className="font-medium truncate">{g.name}</span>
+                  />
+                </div>
+                <span className="hidden lg:block font-medium truncate flex-1">{g.name}</span>
               </div>
-
-              <div
-                className={`w-2 h-2 rounded-full ring-2 ring-gray-900 ${g.detected ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-rose-500'}`}
-              />
             </button>
           ))}
         </nav>
 
-        <div className="p-4 bg-gray-900/50 backdrop-blur-sm border-t border-gray-800/50 space-y-2">
-          <h3 className="text-[10px] uppercase font-bold text-gray-500 tracking-wider mb-2 pl-2">
-            {t.tools}
-          </h3>
-
+        <div className="p-4 space-y-2">
           {currentGame && currentGame.managed && view === 'library' && (
-            <>
+            <div className="lg:block mb-4 space-y-2">
+              <div className="h-px bg-white/10 my-4 mx-2" />
               {currentGame.toolButtons &&
                 currentGame.toolButtons.map((btn, idx) => (
                   <button
@@ -513,81 +549,96 @@ function App() {
                     onClick={async () => {
                       await (window as any).electron.runExtensionCommand(currentGame.id, btn.action)
                     }}
-                    className="w-full py-2 bg-orange-900/20 hover:bg-orange-900/40 border border-orange-500/20 hover:border-orange-500/40 rounded-lg text-sm text-orange-200 transition-all flex items-center justify-center space-x-2"
+                    title={btn.label}
+                    className="w-full p-3 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/20 hover:border-orange-500/40 rounded-xl text-orange-200 god-transition god-hover flex items-center justify-center lg:justify-start space-x-3 group"
                   >
-                    <Wrench className="w-4 h-4" />
-                    <span>{btn.label}</span>
+                    <Wrench className="w-5 h-5 shrink-0" />
+                    <span className="hidden lg:block text-sm font-medium">{btn.label}</span>
                   </button>
                 ))}
-              <div className="h-px bg-gray-800 my-2 mx-1" />
 
-              <button
-                onClick={() => setShowExportModal(true)}
-                className="w-full py-2 bg-purple-900/20 hover:bg-purple-900/40 border border-purple-500/20 hover:border-purple-500/40 rounded-lg text-sm text-purple-200 transition-all flex items-center justify-center space-x-2"
-              >
-                <Archive className="w-4 h-4" />
-                <span>{t.exportModpack}</span>
-              </button>
-              <button
-                onClick={handlePickModpack}
-                className="w-full py-2 bg-indigo-900/20 hover:bg-indigo-900/40 border border-indigo-500/20 hover:border-indigo-500/40 rounded-lg text-sm text-indigo-200 transition-all flex items-center justify-center space-x-2"
-              >
-                <PackageOpen className="w-4 h-4" />
-                <span>{t.importModpack}</span>
-              </button>
-              <div className="h-px bg-gray-800 my-2 mx-1" />
-            </>
+              <div className="grid grid-cols-1 gap-2">
+                <button
+                  onClick={() => setShowExportModal(true)}
+                  title={t.exportModpack}
+                  className="w-full p-3 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 hover:border-purple-500/40 rounded-xl text-purple-200 god-transition god-hover flex items-center justify-center lg:justify-start space-x-3"
+                >
+                  <Archive className="w-5 h-5 shrink-0" />
+                  <span className="hidden lg:block text-sm font-medium">{t.exportModpack}</span>
+                </button>
+                <button
+                  onClick={handlePickModpack}
+                  title={t.importModpack}
+                  className="w-full p-3 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 hover:border-indigo-500/40 rounded-xl text-indigo-200 god-transition god-hover flex items-center justify-center lg:justify-start space-x-3"
+                >
+                  <PackageOpen className="w-5 h-5 shrink-0" />
+                  <span className="hidden lg:block text-sm font-medium">{t.importModpack}</span>
+                </button>
+              </div>
+            </div>
           )}
+
+          <div className="h-px bg-white/10 my-2 mx-2" />
 
           <button
             onClick={() => setView('settings')}
-            className={`w-full py-2 rounded-lg text-sm transition-all flex items-center justify-center space-x-2 ${
+            title={t.settings}
+            className={`w-full p-3 rounded-xl god-transition god-hover outline-none flex items-center justify-center lg:justify-start space-x-3 ${
               view === 'settings'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-gray-600 text-gray-300'
+                ? 'bg-[rgb(var(--theme-accent))] text-white shadow-lg shadow-[rgb(var(--theme-accent))]/20'
+                : 'text-[rgb(var(--theme-text-muted))] hover:bg-white/5 hover:text-white'
             }`}
           >
-            <Settings className="w-4 h-4" />
-            <span>{t.settings}</span>
+            <Settings className="w-5 h-5 shrink-0" />
+            <span className="hidden lg:block text-sm font-medium">{t.settings}</span>
           </button>
         </div>
-      </div>
+      </aside>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col bg-gray-950 relative overflow-hidden">
-        {/* Background Gradient */}
-        <div className="absolute top-0 left-0 w-full h-96 bg-gradient-to-b from-blue-900/10 to-transparent pointer-events-none" />
-
+      <main className="flex-1 glass-panel rounded-2xl overflow-hidden flex flex-col relative z-0 god-transition">
         {view === 'settings' ? (
           <div className="flex-1 p-8 overflow-y-auto">
             <h2 className="text-3xl font-bold text-white mb-8">{t.settings}</h2>
 
-            <div className="flex space-x-6 border-b border-gray-800 mb-8">
+            <div className="flex space-x-6 border-b border-white/10 mb-8">
               <button
                 onClick={() => setSettingsTab('general')}
-                className={`pb-4 px-2 font-medium transition-colors relative ${settingsTab === 'general' ? 'text-blue-400' : 'text-gray-400 hover:text-gray-300'}`}
+                className={`pb-4 px-2 font-medium transition-colors relative ${
+                  settingsTab === 'general'
+                    ? 'text-[rgb(var(--theme-accent))]'
+                    : 'text-[rgb(var(--theme-text-muted))] hover:text-white'
+                }`}
               >
                 {t.general}
                 {settingsTab === 'general' && (
-                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-500 rounded-t-full" />
+                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[rgb(var(--theme-accent))] rounded-t-full shadow-[0_0_10px_rgb(var(--theme-accent))]" />
                 )}
               </button>
               <button
                 onClick={() => setSettingsTab('extensions')}
-                className={`pb-4 px-2 font-medium transition-colors relative ${settingsTab === 'extensions' ? 'text-blue-400' : 'text-gray-400 hover:text-gray-300'}`}
+                className={`pb-4 px-2 font-medium transition-colors relative ${
+                  settingsTab === 'extensions'
+                    ? 'text-[rgb(var(--theme-accent))]'
+                    : 'text-[rgb(var(--theme-text-muted))] hover:text-white'
+                }`}
               >
                 {t.extensions}
                 {settingsTab === 'extensions' && (
-                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-500 rounded-t-full" />
+                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[rgb(var(--theme-accent))] rounded-t-full shadow-[0_0_10px_rgb(var(--theme-accent))]" />
                 )}
               </button>
               <button
                 onClick={() => setSettingsTab('about')}
-                className={`pb-4 px-2 font-medium transition-colors relative ${settingsTab === 'about' ? 'text-blue-400' : 'text-gray-400 hover:text-gray-300'}`}
+                className={`pb-4 px-2 font-medium transition-colors relative ${
+                  settingsTab === 'about'
+                    ? 'text-[rgb(var(--theme-accent))]'
+                    : 'text-[rgb(var(--theme-text-muted))] hover:text-white'
+                }`}
               >
                 About
                 {settingsTab === 'about' && (
-                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-500 rounded-t-full" />
+                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[rgb(var(--theme-accent))] rounded-t-full shadow-[0_0_10px_rgb(var(--theme-accent))]" />
                 )}
               </button>
             </div>
@@ -732,7 +783,7 @@ function App() {
         ) : currentGame ? (
           <>
             {/* Header / Hero */}
-            <header className="relative z-10 px-8 py-8 border-b border-gray-800/50 backdrop-blur-sm">
+            <header className="relative z-10 px-8 py-8 border-b border-white/5 backdrop-blur-md">
               <div className="flex justify-between items-start">
                 <div>
                   <div className="flex items-center space-x-3 mb-2">
@@ -756,7 +807,7 @@ function App() {
                   {currentGame.steamAppId && (
                     <a
                       href={`steam://run/${currentGame.steamAppId}`}
-                      className="group px-4 py-2 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white rounded-lg shadow-lg hover:shadow-emerald-500/20 transition-all flex items-center space-x-2 no-underline"
+                      className="group px-4 py-2 bg-[rgb(var(--theme-accent))] hover:bg-[rgb(var(--theme-accent))]/80 text-white rounded-xl shadow-lg shadow-[rgb(var(--theme-accent))]/20 god-transition god-hover flex items-center space-x-2 no-underline"
                     >
                       <Gamepad2 className="w-5 h-5 fill-current" />
                       <span className="font-semibold">{t.playSteam}</span>
@@ -766,7 +817,7 @@ function App() {
                   {currentGame.managed && (
                     <button
                       onClick={handleInstallMod}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg shadow-lg hover:shadow-blue-500/20 font-semibold transition-all flex items-center space-x-2"
+                      className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl shadow-lg border border-white/5 font-semibold god-transition god-hover flex items-center space-x-2"
                     >
                       <Download className="w-5 h-5" />
                       <span>{t.installMod}</span>
@@ -775,7 +826,7 @@ function App() {
                   {currentGame.managed && (
                     <button
                       onClick={() => (window as any).electron.openUrl(currentGame.path)}
-                      className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg shadow-lg hover:shadow-gray-500/20 font-semibold transition-all flex items-center space-x-2"
+                      className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl shadow-lg border border-white/5 font-semibold god-transition god-hover flex items-center space-x-2"
                       title="Open Game Folder"
                     >
                       <FolderOpen className="w-5 h-5" />
@@ -787,13 +838,13 @@ function App() {
 
               {currentGame.managed && (
                 <div className="mt-8 flex items-center justify-between">
-                  <div className="flex space-x-6 text-sm font-medium text-gray-400">
+                  <div className="flex space-x-6 text-sm font-medium text-[rgb(var(--theme-text-muted))]">
                     <div className="flex items-center space-x-2">
                       <span className="text-white text-lg">{mods.length}</span>
                       <span>{t.total}</span>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <span className="text-emerald-400 text-lg">
+                      <span className="text-[rgb(var(--theme-accent))] text-lg">
                         {mods.filter((m) => m.enabled).length}
                       </span>
                       <span>{t.active}</span>
@@ -821,22 +872,24 @@ function App() {
               )}
             </header>
 
-            <div className="flex-1 p-6 overflow-y-auto">
+            <div className="flex-1 p-6 overflow-y-auto custom-scrollbar">
               {!currentGame.managed ? (
                 <div className="flex flex-col items-center justify-center h-full text-center space-y-6">
-                  <div className="p-4 bg-gray-900 rounded-full border border-gray-800">
-                    <Box className="w-12 h-12 text-gray-600" />
+                  <div className="p-4 bg-white/5 rounded-full border border-white/5">
+                    <Box className="w-12 h-12 text-[rgb(var(--theme-text-muted))]" />
                   </div>
                   <div>
                     <h3 className="text-xl font-bold text-white mb-2">
                       {t.initializationRequired}
                     </h3>
-                    <p className="text-gray-400 max-w-sm mx-auto">{t.initDesc}</p>
+                    <p className="text-[rgb(var(--theme-text-muted))] max-w-sm mx-auto">
+                      {t.initDesc}
+                    </p>
                   </div>
                   <button
                     onClick={handleManageGame}
                     disabled={isManaging}
-                    className={`px-8 py-3 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white rounded-xl shadow-lg hover:shadow-blue-500/25 font-bold text-lg transition-all transform hover:-translate-y-1 ${
+                    className={`px-8 py-3 bg-[rgb(var(--theme-accent))] hover:bg-[rgb(var(--theme-accent))]/80 text-white rounded-xl shadow-lg shadow-[rgb(var(--theme-accent))]/20 font-bold text-lg transition-all transform hover:-translate-y-1 ${
                       isManaging ? 'cursor-not-allowed opacity-80' : ''
                     }`}
                   >
@@ -896,32 +949,34 @@ function App() {
                   )}
 
                   {mods.length === 0 ? (
-                    <div className="border-2 border-dashed border-gray-800 rounded-2xl flex flex-col items-center justify-center h-64 text-gray-500">
-                      <p className="font-medium">{t.noMods}</p>
-                      <p className="text-sm mt-1">{t.dragDrop}</p>
+                    <div className="border-2 border-dashed border-white/5 rounded-2xl flex flex-col items-center justify-center h-64 text-[rgb(var(--theme-text-muted))]">
+                      <p className="font-medium text-white">{t.noMods}</p>
+                      <p className="text-sm mt-1 text-[rgb(var(--theme-text-muted))]">
+                        {t.dragDrop}
+                      </p>
                     </div>
                   ) : (
                     mods.map((mod) => (
                       <div
                         key={mod.id}
-                        className="group bg-gray-900/50 hover:bg-gray-800 border border-gray-800 hover:border-gray-700 p-4 rounded-xl transition-all flex items-center justify-between"
+                        className="group glass-panel bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 p-4 rounded-xl god-transition hover:scale-[1.01] flex items-center justify-between mb-4 shadow-lg hover:shadow-xl"
                       >
                         <div className="flex items-center space-x-5">
                           {/* Status Indicator */}
                           <div
-                            className={`w-1.5 h-12 rounded-full transition-colors ${mod.enabled ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.3)]' : 'bg-gray-700'}`}
+                            className={`w-1 h-12 rounded-full god-transition ${mod.enabled ? 'bg-[rgb(var(--theme-accent))] shadow-[0_0_15px_rgb(var(--theme-accent))]' : 'bg-white/10'}`}
                           ></div>
 
                           <div className="flex flex-col flex-1 pl-4">
                             <div className="flex items-center space-x-2">
                               <h3
-                                className={`font-bold text-lg ${mod.enabled ? 'text-white' : 'text-gray-400'} cursor-pointer hover:text-blue-400 transition-colors`}
+                                className={`font-bold text-lg ${mod.enabled ? 'text-white' : 'text-[rgb(var(--theme-text-muted))]'} cursor-pointer hover:text-[rgb(var(--theme-accent))] transition-colors`}
                                 onClick={() => setDetailMod(mod as any)}
                               >
                                 {mod.name}
                               </h3>
                               {mod.version && (
-                                <span className="text-[10px] font-mono bg-gray-800 text-gray-300 px-1.5 py-0.5 rounded border border-gray-700">
+                                <span className="text-[10px] font-mono bg-white/10 text-[rgb(var(--theme-text-muted))] px-1.5 py-0.5 rounded border border-white/5">
                                   {/^\d/.test(mod.version) ? 'v' : ''}
                                   {mod.version}
                                 </span>
@@ -930,7 +985,7 @@ function App() {
                                 <>
                                   <button
                                     onClick={() => (window as any).electron.openUrl(mod.sourceUrl)}
-                                    className="text-gray-600 hover:text-blue-400 transition-colors"
+                                    className="text-[rgb(var(--theme-text-muted))] hover:text-[rgb(var(--theme-accent))] transition-colors"
                                     title={
                                       mod.sourceUrl.includes('github.com')
                                         ? 'View on GitHub'
@@ -942,7 +997,7 @@ function App() {
                                   {mod.sourceUrl.includes('github.com') && (
                                     <button
                                       onClick={() => handleCheckUpdate(mod)}
-                                      className="text-gray-600 hover:text-green-400 transition-colors"
+                                      className="text-[rgb(var(--theme-text-muted))] hover:text-emerald-400 transition-colors"
                                       title="Check for Updates"
                                     >
                                       <RefreshCw className="w-4 h-4" />
@@ -972,7 +1027,7 @@ function App() {
 
                                       ;(window as any).electron.openUrl(targetUrl)
                                     }}
-                                    className="text-gray-600 hover:text-blue-400 transition-colors"
+                                    className="text-[rgb(var(--theme-text-muted))] hover:text-[rgb(var(--theme-accent))] transition-colors"
                                     title="View on Nexus Mods"
                                   >
                                     <ExternalLink className="w-4 h-4" />
@@ -1020,10 +1075,10 @@ function App() {
                           {/* Toggle Switch */}
                           <button
                             onClick={() => handleToggleMod(mod)}
-                            className={`relative w-14 h-7 rounded-full p-1 transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-blue-500 ${
+                            className={`relative w-14 h-7 rounded-full p-1 transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-black focus:ring-[rgb(var(--theme-accent))] ${
                               mod.enabled
-                                ? 'bg-blue-600 hover:bg-blue-500'
-                                : 'bg-gray-700 hover:bg-gray-600'
+                                ? 'bg-[rgb(var(--theme-accent))] hover:bg-[rgb(var(--theme-accent))]/80'
+                                : 'bg-white/10 hover:bg-white/20'
                             }`}
                           >
                             <span
@@ -1096,15 +1151,17 @@ function App() {
             </div>
           </>
         ) : (
-          <div className="flex flex-col items-center justify-center h-full text-gray-600 bg-gray-950/50">
-            <div className="mb-4 p-6 bg-gray-900 rounded-full shadow-2xl">
-              <Gamepad2 className="w-16 h-16 text-gray-700" />
+          <div className="flex flex-col items-center justify-center h-full text-[rgb(var(--theme-text-muted))]">
+            <div className="mb-6 p-8 glass-panel rounded-full shadow-2xl bg-[rgb(var(--theme-accent))]/5 border border-[rgb(var(--theme-accent))]/20">
+              <Gamepad2 className="w-20 h-20 text-[rgb(var(--theme-accent))]" />
             </div>
-            <p className="text-xl font-medium mb-1">Select a game</p>
-            <p className="text-sm">Choose a game from the sidebar to manage mods</p>
+            <p className="text-2xl font-bold mb-2 text-white">Select a Game</p>
+            <p className="text-base text-[rgb(var(--theme-text-muted))]">
+              Choose a game from the dock to manage mods
+            </p>
           </div>
         )}
-      </div>
+      </main>
 
       {showExportModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
