@@ -21,6 +21,16 @@ const api = {
 
   installExtension: () => ipcRenderer.invoke('install-extension-dialog'),
   exportExtension: (gameId: string) => ipcRenderer.invoke('export-extension', gameId),
+
+  // Modpack methods
+  createModpack: (gameId: string, meta: any) =>
+    ipcRenderer.invoke('create-modpack-dialog', gameId, meta),
+  pickModpack: () => ipcRenderer.invoke('pick-modpack'),
+  installModpack: (filePath: string) => ipcRenderer.invoke('install-modpack', filePath),
+
+  getSettings: () => ipcRenderer.invoke('get-settings'),
+  saveSettings: (settings: any) => ipcRenderer.invoke('save-settings', settings),
+
   openUrl: (url: string) => ipcRenderer.invoke('open-url', url)
 }
 

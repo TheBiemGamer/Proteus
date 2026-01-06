@@ -3,8 +3,10 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { PluginManager } from './pluginLoader'
+import { SettingsManager } from './settings'
 
 const pluginManager = new PluginManager(process.cwd())
+const settingsManager = new SettingsManager()
 
 function createWindow(): void {
   // Create the browser window.
@@ -100,6 +102,10 @@ app.whenReady().then(() => {
     await shell.openExternal(url)
   })
 
+  // Settings IPC
+  ipcMain.handle('get-settings', () => settingsManager.get())
+  ipcMain.handle('save-settings', (_, settings) => settingsManager.set(settings))
+
   ipcMain.handle('toggle-mod', async (_, gameId, modId, enabled) => {
     try {
       if (enabled) {
@@ -166,6 +172,51 @@ app.whenReady().then(() => {
     } catch (err) {
       console.error('Extension export failed', err)
       return false
+    }
+  })
+
+  // --- Modpack IPC ---
+
+  ipcMain.handle('create-modpack-dialog', async (_, gameId, meta) => {
+    // meta includes title, author, version, description, imagePath (optional)
+    const { canceled, filePath } = await dialog.showSaveDialog({
+      defaultPath: `${(meta.title || 'modpack').replace(/[^a-z0-9]/gi, '_').toLowerCase()}.modpack`,
+      filters: [{ name: 'Modpack', extensions: ['modpack'] }]
+    })
+
+    if (canceled || !filePath) return false
+
+    try {
+      return await pluginManager.createModpack(gameId, meta, filePath)
+    } catch (e) {
+      console.error(e)
+      return false
+    }
+  })
+
+  ipcMain.handle('pick-modpack', async (_) => {
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      filters: [{ name: 'Modpack', extensions: ['modpack'] }]
+    })
+    if (canceled || filePaths.length === 0) return null
+
+    const filePath = filePaths[0]
+    try {
+      const info = await pluginManager.getModpackMetadata(filePath)
+      return { ...info, filePath }
+    } catch (e) {
+      console.error(e)
+      throw e
+    }
+  })
+
+  ipcMain.handle('install-modpack', async (_, filePath) => {
+    try {
+      return await pluginManager.installModpack(filePath)
+    } catch (e) {
+      console.error(e)
+      throw e
     }
   })
 

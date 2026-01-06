@@ -6,7 +6,7 @@ import AdmZip from 'adm-zip'
 import axios from 'axios'
 import sevenBin from '7zip-bin'
 import Seven from 'node-7z'
-import { IGameExtension, IMod } from '../shared/types'
+import { IGameExtension, IMod, IModpackManifest } from '../shared/types'
 
 interface GameManifest {
   mods: IMod[]
@@ -814,5 +814,146 @@ export class PluginManager {
     console.log(pluginDir)
     zip.addLocalFolder(pluginDir)
     return zip.toBuffer()
+  }
+
+  // --- Modpack Management ---
+
+  async createModpack(gameId: string, meta: any, destPath: string) {
+    const manifest = this.readManifest(gameId)
+    // Filter enabled mods and exclude loaders (case-insensitive)
+    const enabledMods = manifest.mods.filter((m) => {
+      if (!m.enabled) return false
+      const type = m.type.toLowerCase()
+      return type !== 'loader' && type !== 'binaries'
+    })
+
+    const zip = new AdmZip()
+
+    const packManifest: IModpackManifest = {
+      meta: {
+        title: meta.title,
+        description: meta.description,
+        author: meta.author,
+        version: meta.version,
+        gameId: gameId
+      },
+      mods: []
+    }
+
+    for (const mod of enabledMods) {
+      packManifest.mods.push({
+        id: mod.id,
+        name: mod.name,
+        nexusId: mod.nexusId,
+        version: mod.version
+      })
+
+      // Add mod folder from staging
+      const modStagingPath = path.join(this.stagingDir, gameId, mod.id)
+      if (fs.existsSync(modStagingPath)) {
+        zip.addLocalFolder(modStagingPath, `mods/${mod.id}`)
+      }
+    }
+
+    if (meta.imagePath && fs.existsSync(meta.imagePath)) {
+      zip.addLocalFile(meta.imagePath, '', 'icon.png')
+    }
+
+    zip.addFile('modpack.json', Buffer.from(JSON.stringify(packManifest, null, 2)))
+
+    zip.writeZip(destPath)
+    return true
+  }
+
+  async getModpackMetadata(modpackPath: string) {
+    try {
+      const zip = new AdmZip(modpackPath)
+      const entry = zip.getEntry('modpack.json')
+      if (!entry) throw new Error('Invalid Modpack')
+
+      const content = zip.readAsText(entry)
+      const manifest: IModpackManifest = JSON.parse(content)
+
+      // Check for image
+      let image: string | undefined
+      const validExtensions = ['.png', '.jpg', '.jpeg', '.bmp', '.gif']
+      const iconEntry = zip.getEntries().find((e) => {
+        const ext = path.extname(e.entryName).toLowerCase()
+        return e.entryName.startsWith('icon.') && validExtensions.includes(ext)
+      })
+
+      if (iconEntry) {
+        const buf = zip.readFile(iconEntry)
+        if (buf) {
+          const ext = path.extname(iconEntry.entryName).substring(1)
+          image = `data:image/${ext};base64,${buf.toString('base64')}`
+        }
+      }
+
+      return { ...manifest, image }
+    } catch (e) {
+      throw new Error('Failed to read modpack: ' + e)
+    }
+  }
+
+  async installModpack(modpackPath: string) {
+    const zip = new AdmZip(modpackPath)
+    const entry = zip.getEntry('modpack.json')
+    if (!entry) throw new Error('Invalid Modpack')
+    const packManifest: IModpackManifest = JSON.parse(zip.readAsText(entry))
+
+    const gameId = packManifest.meta.gameId
+
+    // Ensure we have a path for this game
+    if (!this.gamePaths[gameId]) {
+      throw new Error(`Game ${gameId} not managed or detected.`)
+    }
+
+    const tempDir = path.join(app.getPath('userData'), 'Temp', 'ModpackInstall')
+    if (fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true })
+    fs.mkdirSync(tempDir, { recursive: true })
+
+    zip.extractAllTo(tempDir, true)
+
+    const modsDir = path.join(tempDir, 'mods')
+    if (fs.existsSync(modsDir)) {
+      const modDirs = fs.readdirSync(modsDir)
+      for (const modId of modDirs) {
+        const source = path.join(modsDir, modId)
+        const dest = path.join(this.stagingDir, gameId, modId)
+
+        if (fs.existsSync(dest)) fs.rmSync(dest, { recursive: true, force: true })
+        if (!fs.existsSync(path.dirname(dest)))
+          fs.mkdirSync(path.dirname(dest), { recursive: true })
+
+        fs.cpSync(source, dest, { recursive: true })
+
+        const modMeta = packManifest.mods.find((m) => m.id === modId) || { id: modId, name: modId }
+
+        const gameManifest = this.readManifest(gameId)
+        let existing = gameManifest.mods.find((m) => m.id === modId)
+        if (!existing) {
+          existing = {
+            id: modId,
+            name: modMeta.name,
+            enabled: false,
+            installDate: Date.now(),
+            files: [],
+            type: 'mod',
+            version: modMeta.version,
+            nexusId: modMeta.nexusId
+          }
+          gameManifest.mods.push(existing)
+          this.writeManifest(gameId, gameManifest)
+        }
+
+        // Enable it
+        await this.enableMod(gameId, modId)
+      }
+    }
+
+    fs.rmSync(tempDir, { recursive: true, force: true })
+
+    return gameId
   }
 }

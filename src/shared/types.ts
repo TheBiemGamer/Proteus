@@ -19,3 +19,28 @@ export interface IMod {
   version?: string
   nexusId?: string
 }
+
+export interface IModpackMeta {
+  title: string
+  author: string
+  version: string
+  description: string
+  gameId: string
+}
+
+export interface IModpackManifest {
+  meta: IModpackMeta
+  mods: Array<{
+    id: string
+    name: string
+    nexusId?: string
+    version?: string
+  }>
+}
+
+export interface IAppSettings {
+  language: 'en' | 'nl'
+  nexusApiKey?: string
+  developerMode: boolean
+  startMaximized: boolean
+}

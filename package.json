@@ -26,6 +26,7 @@
     "@electron-toolkit/utils": "^4.0.0",
     "adm-zip": "^0.5.16",
     "axios": "^1.13.2",
+    "lucide-react": "^0.562.0",
     "node-7z": "^3.0.0",
     "vm2": "^3.10.0"
   },
