@@ -1,15 +1,19 @@
-<img src="./assets/image.png" alt="drawing" style="width:1200px;"/>
+<img src="./assets/image.png" alt="Proteus Mod Manager Banner" style="width:75%; border-radius: 10px;"/>
 
 # Proteus Mod Manager (PMM)
 
 > [!IMPORTANT]
-> Proteus Mod Manager is currently in early development, so it's expected to have some bugs.
+> **Status: Early Development** Proteus Mod Manager is currently in alpha. Expect bugs, breaking changes, and rapid iterations.
 
-A modern, extensible Mod Manager application built with Electron, React, and TypeScript, supporting custom plugins for various games.
+Proteus is a modern, universal Mod Manager built with Electron, React, and TypeScript. Unlike traditional managers built for specific engines, Proteus is architected to be completely agnostic—supporting any game through a powerful, sandboxed plugin system.
+
+Proteus is named after the Greek sea god capable of assuming any form, this project stands for Universal Adaptability. Just as the god changes Shape to fit the situation, this manager transfroms its logic and interface to support anyt game through its plugin system.
+
+---
 
 ## Extension/Plugin Development Guide
 
-The Proteus Mod Manager is designed to be agnostic to the specific game it manages. Support for games is added via **Plugins**.
+Proteus is designed to be agnostic to the game it manages. Support is added via **Plugins** which run in a sandbox.
 
 ### Plugin Structure
 
@@ -208,3 +212,35 @@ pnpm run dev
 ```bash
 npm run build:win
 ```
+
+---
+
+##  Contributing
+
+We welcome all forms of contribution, whether it's adding support for new games, improving the UI, or enhancing the core architecture!
+
+### 1. Create Game Plugins
+
+The best way to help Proteus grow is by expanding its library of supported games. If your favorite game isn't supported, check the **Plugin Development Guide** above and submit a Pull Request with your new plugin!
+
+### 2. Core & PluginLoader Development
+
+If you want to improve the `PluginLoader`, the Electron backend, or the React frontend, we’d love your help. However, to maintain the "Universal" nature of Proteus, you must adhere to one strict rule:
+
+> [!CAUTION]
+> **Strict Rule: No Game-Specific Logic in the Core**
+> The `PluginLoader` and the main Application **must remain completely agnostic**.
+> * **Do Not** hardcode checks like `if (game === 'Skyrim')` inside the main process or UI components.
+> * **Do Not** import game-specific assets into the core bundle.
+> 
+> 
+> All game-specific logic must reside entirely within the `.js` file of the respective Plugin.
+
+### Extending Functionality
+
+If you find that a Plugin *cannot* achieve a specific task because the Sandbox API is too limited, **you are encouraged to extend the PluginLoader.**
+
+Instead of hardcoding the fix for that specific game, implement a **generic solution** in the `sandbox.manager` API that any plugin could use in the future.
+
+* *Bad:* Adding a function `installCyberpunkMod()` to the core.
+* *Good:* Adding a generic function `patchJsonFile()` to the Sandbox API, which the Cyberpunk plugin can then utilize.
