@@ -26,10 +26,22 @@ Create a new file `plugins/mygame.js`:
 
 ```javascript
 module.exports.default = {
-  id: 'mygame',                 // Internal ID (no spaces)
-  name: 'My Game',              // Display Name
-  steamAppId: '123450',         // Steam App ID (for detection)
-  executable: 'bin/game.exe',   // Relative path to executable from Game Root
+  id: 'mygame', // Internal ID (no spaces)
+  name: 'My Game', // Display Name
+  steamAppId: '123450', // Steam App ID (for detection)
+  executable: 'bin/game.exe', // Relative path to executable from Game Root
+
+  // Optional: Define download sources (replaces old nexusSlug)
+  // If only one source is provided, the "Get mods" button opens it directly.
+  // If multiple are provided, a dropdown menu is shown.
+  modSources: [
+    { text: 'Nexus Mods', url: 'https://www.nexusmods.com/mygame' },
+    { text: 'Mod Wiki', url: 'https://wiki.example.com/mods' }
+  ],
+
+  // Optional: Supported file extensions for the "Install Mod" dialog
+  // Defaults to ['zip', 'rar', '7z', 'mod'] if not specified.
+  modFileExtensions: ['zip', 'rar', '7z', 'pak', 'myformat'],
 
   /**
    * Detects if the game is installed in one of the candidate paths.
@@ -60,7 +72,7 @@ module.exports.default = {
   /**
    * Verifies if the game is ready for mods (e.g. is the Loader installed?).
    * Used to show the "Requirements Missing" banner.
-   * @param {string} gamePath 
+   * @param {string} gamePath
    */
   checkRequirements: async (gamePath) => {
     const path = require('path')
@@ -71,9 +83,7 @@ module.exports.default = {
     return {
       valid: false,
       message: 'Mod Loader is missing!',
-      links: [
-        { text: 'Download Loader', url: 'https://example.com/download' }
-      ]
+      links: [{ text: 'Download Loader', url: 'https://example.com/download' }]
     }
   },
 
@@ -86,7 +96,7 @@ module.exports.default = {
     const path = require('path')
     // Helper recursive find function available in your closure
     // ...
-    const hasDll = sandbox.manager.readDir(stagingPath).some(f => f.endsWith('.dll'))
+    const hasDll = sandbox.manager.readDir(stagingPath).some((f) => f.endsWith('.dll'))
     if (hasDll) return 'Loader'
     return 'Mod'
   },
@@ -99,7 +109,7 @@ module.exports.default = {
    */
   install: async (sourcePath, gamePath, originalZipPath) => {
     const path = require('path')
-    
+
     // Example: Symlink all files to Game Root
     const deployRecursive = (src, dest) => {
       const items = sandbox.manager.readDir(src)
@@ -125,25 +135,27 @@ module.exports.default = {
 
 The global `sandbox.manager` object provides the following methods for file system interaction and more:
 
-| Method | Description |
-|--------|-------------|
-| `fileExists(path)` | Returns `true` if file exists. |
-| `isDirectory(path)` | Returns `true` if path is a directory. |
-| `readDir(path)` | Returns array of file names in directory. |
-| `downloadFile(url, destPath)` | Downloads a file from URL to local path. |
+| Method                         | Description                                                |
+| ------------------------------ | ---------------------------------------------------------- |
+| `fileExists(path)`             | Returns `true` if file exists.                             |
+| `isDirectory(path)`            | Returns `true` if path is a directory.                     |
+| `readDir(path)`                | Returns array of file names in directory.                  |
+| `downloadFile(url, destPath)`  | Downloads a file from URL to local path.                   |
 | `installMod(zipPath, options)` | Trigger the mod installation logic manually (rarely used). |
-| `deleteFile(path)` | Deletes a file. |
-| `symlinkFile(src, dest)` | Creates a symbolic link from source to dest. |
-| `openUrl(url)` | Opens the URL in the system default browser. |
-| `showAlert(title, message)` | Shows a native message box. |
+| `deleteFile(path)`             | Deletes a file.                                            |
+| `symlinkFile(src, dest)`       | Creates a symbolic link from source to dest.               |
+| `openUrl(url)`                 | Opens the URL in the system default browser.               |
+| `showAlert(title, message)`    | Shows a native message box.                                |
 
 You also have access to:
+
 - `require('path')`: Standard Node.js Path module.
 - `sandbox.console.log` / `sandbox.console.error`: Logging to the main process console.
 
 ## Project Setup (Development)
 
 ### Install Dependencies
+
 ```bash
 npm install
 # or
@@ -151,6 +163,7 @@ pnpm install
 ```
 
 ### Run in Development Mode
+
 ```bash
 npm run dev
 # or
@@ -158,6 +171,7 @@ pnpm run dev
 ```
 
 ### Build for Production
+
 ```bash
 npm run build:win
 ```

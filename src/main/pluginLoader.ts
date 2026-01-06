@@ -272,21 +272,21 @@ export class PluginManager {
       const id = String(key) // Ensure ID is string
       if (this.gamePaths[id]) {
         const manifest = this.readManifest(id)
-        
+
         // Safely extract properties from vm2 proxy
         // Force primitives to avoid proxy leakage
         const name = String(plugin.name)
         const steamAppId = plugin.steamAppId ? String(plugin.steamAppId) : undefined
-        
+
         let modSources: { text: string; url: string }[] | undefined
         // Access safely
         try {
           const rawSources = (plugin as any).modSources
           if (Array.isArray(rawSources)) {
             // Explicitly map and stringify properties
-            modSources = rawSources.map((s: any) => ({ 
-              text: String(s.text), 
-              url: String(s.url) 
+            modSources = rawSources.map((s: any) => ({
+              text: String(s.text),
+              url: String(s.url)
             }))
           }
         } catch (e) {
