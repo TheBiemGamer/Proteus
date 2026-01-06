@@ -1,5 +1,8 @@
 # ModManager
 
+> [!IMPORTANT]
+> Mod Manager is currently in early development, so it's expected to have some bugs.
+
 A modern, extensible Mod Manager application built with Electron, React, and TypeScript, supporting custom plugins for various games.
 
 ## Extension/Plugin Development Guide
@@ -32,8 +35,6 @@ module.exports.default = {
   executable: 'bin/game.exe', // Relative path to executable from Game Root
 
   // Optional: Define download sources (replaces old nexusSlug)
-  // If only one source is provided, the "Get mods" button opens it directly.
-  // If multiple are provided, a dropdown menu is shown.
   modSources: [
     { text: 'Nexus Mods', url: 'https://www.nexusmods.com/mygame' },
     { text: 'Mod Wiki', url: 'https://wiki.example.com/mods' }
