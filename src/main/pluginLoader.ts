@@ -886,6 +886,24 @@ export class PluginManager {
     }
   }
 
+  async _fetchNexusMetadata(gameId: string, nexusId: string) {
+    if (!this.nexusApiKey) return null
+    try {
+      const slug = this.getNexusSlug(gameId)
+      const url = `https://api.nexusmods.com/v1/games/${slug}/mods/${nexusId}.json`
+      const headers = {
+        apikey: this.nexusApiKey,
+        'Application-Name': 'ModManager',
+        'Application-Version': '1.0.0'
+      }
+      const response = await axios.get(url, { headers })
+      return response.data
+    } catch (e: any) {
+      console.warn(`Nexus fetch failed for ${nexusId}: ${e.message}`)
+      return null
+    }
+  }
+
   async checkNexusUpdate(gameId: string, nexusId: string, currentVersion?: string) {
     if (!this.nexusApiKey) return { error: 'Nexus API Key not set in Settings' }
 
@@ -1453,6 +1471,34 @@ export class PluginManager {
 
         const modMeta = packManifest.mods.find((m) => m.id === modId) || { id: modId, name: modId }
 
+        // Determine Type
+        let type = 'mod'
+        const customType = await this.runCommand(gameId, 'determineModType', dest)
+        if (customType && typeof customType === 'string') {
+          type = customType
+        } else if (
+          fs.existsSync(path.join(dest, 'dinput8.dll')) ||
+          modId.toLowerCase().includes('loader')
+        ) {
+          type = 'loader'
+        }
+
+        // Fetch Metadata
+        let author: string | undefined
+        let description: string | undefined
+        let imageUrl: string | undefined
+        let version = modMeta.version
+
+        if (modMeta.nexusId) {
+          const data = await this._fetchNexusMetadata(gameId, modMeta.nexusId)
+          if (data) {
+             if (data.uploaded_by) author = data.uploaded_by
+             if (data.summary) description = data.summary
+             if (data.picture_url) imageUrl = data.picture_url
+             if (data.version && !version) version = data.version
+          }
+        }
+
         const gameManifest = this.readManifest(gameId)
         let existing = gameManifest.mods.find((m) => m.id === modId)
         if (!existing) {
@@ -1462,12 +1508,23 @@ export class PluginManager {
             enabled: false,
             installDate: Date.now(),
             files: [],
-            type: 'mod',
-            version: modMeta.version,
-            nexusId: modMeta.nexusId
+            type,
+            version,
+            nexusId: modMeta.nexusId,
+            author,
+            description,
+            imageUrl
           }
           gameManifest.mods.push(existing)
           this.writeManifest(gameId, gameManifest)
+        } else {
+             // Update existing metadata if we have better info now
+             if (modMeta.nexusId && !existing.nexusId) existing.nexusId = modMeta.nexusId
+             if (author && !existing.author) existing.author = author
+             if (description && !existing.description) existing.description = description
+             if (imageUrl && !existing.imageUrl) existing.imageUrl = imageUrl
+             if (type !== 'mod' && existing.type === 'mod') existing.type = type
+             this.writeManifest(gameId, gameManifest)
         }
 
         // Enable it

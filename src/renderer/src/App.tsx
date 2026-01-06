@@ -282,10 +282,10 @@ function App() {
         try {
           path = (window as any).electron.getPathForFile(file)
         } catch (err) {
-            console.warn("Failed to get path via webUtils", err)
+          console.warn('Failed to get path via webUtils', err)
         }
       }
-      
+
       if (path) {
         handleAnalyzeAndInstall(path)
       }
