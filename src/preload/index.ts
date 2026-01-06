@@ -20,6 +20,16 @@ const api = {
     ipcRenderer.invoke('run-extension-command', gameId, 'toggleLoader', enable),
 
   installExtension: () => ipcRenderer.invoke('install-extension-dialog'),
+  // Extension Manager API
+  getExtensionList: () => ipcRenderer.invoke('get-extension-list'),
+  toggleExtension: (id: string, enabled: boolean) =>
+    ipcRenderer.invoke('toggle-extension', id, enabled),
+  deleteExtension: (id: string) => ipcRenderer.invoke('delete-extension', id),
+  exportExtensions: (ids: string[]) => ipcRenderer.invoke('export-extensions', ids),
+  installExtensionDialog: () => ipcRenderer.invoke('install-extension-dialog'),
+  installExtensionsConfirm: (filePath: string, selected: string[]) =>
+    ipcRenderer.invoke('install-extensions-confirm', filePath, selected),
+
   exportExtension: (gameId: string) => ipcRenderer.invoke('export-extension', gameId),
 
   // Modpack methods

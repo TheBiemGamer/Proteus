@@ -2,13 +2,11 @@ import { useState, useEffect } from 'react'
 import {
   FolderOpen,
   Download,
-  Plus,
   Trash2,
   ExternalLink,
   AlertTriangle,
   Loader2,
   ChevronDown,
-  FileJson,
   PackageOpen,
   Archive,
   Gamepad2,
@@ -17,6 +15,7 @@ import {
 } from 'lucide-react'
 import './assets/main.css'
 import { translations } from './utils/i18n'
+import { ExtensionManager } from './components/ExtensionManager'
 import { IAppSettings } from '../../shared/types'
 
 interface Game {
@@ -64,6 +63,7 @@ function App() {
     startMaximized: false,
     nexusApiKey: ''
   })
+  const [settingsTab, setSettingsTab] = useState<'general' | 'extensions'>('general')
 
   // Short helper for translation
   const t = translations[settings.language] || translations.en
@@ -90,8 +90,8 @@ function App() {
   }
 
   const handleSaveSettings = async (newSettings: IAppSettings) => {
-      setSettings(newSettings)
-      await (window as any).electron.saveSettings(newSettings)
+    setSettings(newSettings)
+    await (window as any).electron.saveSettings(newSettings)
   }
 
   useEffect(() => {
@@ -229,16 +229,6 @@ function App() {
     }
   }
 
-  const handleInstallExtension = async () => {
-    await (window as any).electron.installExtension()
-    refreshGames()
-  }
-
-  const handleExportExtension = async () => {
-    if (!selectedGame) return
-    await (window as any).electron.exportExtension(selectedGame)
-  }
-
   const currentGame = games.find((g) => g.id === selectedGame)
 
   return (
@@ -246,7 +236,10 @@ function App() {
       {/* Sidebar */}
       <div className="w-72 bg-gray-900 border-r border-gray-800 flex flex-col shadow-2xl z-10">
         <div className="p-6">
-          <h1 className="text-2xl font-black bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent tracking-tighter cursor-pointer" onClick={() => setView('library')}>
+          <h1
+            className="text-2xl font-black bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent tracking-tighter cursor-pointer"
+            onClick={() => setView('library')}
+          >
             MOD MANAGER
           </h1>
           <p className="text-xs text-gray-500 mt-1 uppercase tracking-widest font-semibold">
@@ -258,7 +251,10 @@ function App() {
           {games.map((g) => (
             <button
               key={g.id}
-              onClick={() => { setSelectedGame(g.id); setView('library'); }}
+              onClick={() => {
+                setSelectedGame(g.id)
+                setView('library')
+              }}
               className={`group w-full flex items-center justify-between p-3 rounded-xl text-left transition-all duration-200 outline-none focus:ring-2 focus:ring-blue-500/50 ${
                 selectedGame === g.id && view === 'library'
                   ? 'bg-gradient-to-br from-gray-800 to-gray-700 text-white shadow-lg border border-gray-700'
@@ -308,35 +304,18 @@ function App() {
               <div className="h-px bg-gray-800 my-2 mx-1" />
             </>
           )}
-          
-           <button
+
+          <button
             onClick={() => setView('settings')}
             className={`w-full py-2 rounded-lg text-sm transition-all flex items-center justify-center space-x-2 ${
-                view === 'settings' 
-                ? 'bg-blue-600 text-white' 
+              view === 'settings'
+                ? 'bg-blue-600 text-white'
                 : 'bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-gray-600 text-gray-300'
             }`}
           >
             <Settings className="w-4 h-4" />
             <span>{t.settings}</span>
           </button>
-
-          <button
-            onClick={handleInstallExtension}
-            className="w-full py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-gray-600 rounded-lg text-sm text-gray-300 transition-all flex items-center justify-center space-x-2"
-          >
-            <Plus className="w-4 h-4" />
-            <span>{t.addExtension}</span>
-          </button>
-          {selectedGame && view === 'library' && (
-            <button
-              onClick={handleExportExtension}
-              className="w-full py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-gray-600 rounded-lg text-sm text-gray-300 transition-all flex items-center justify-center space-x-2"
-            >
-              <FileJson className="w-4 h-4" />
-              <span>{t.exportConfig}</span>
-            </button>
-          )}
         </div>
       </div>
 
@@ -346,58 +325,99 @@ function App() {
         <div className="absolute top-0 left-0 w-full h-96 bg-gradient-to-b from-blue-900/10 to-transparent pointer-events-none" />
 
         {view === 'settings' ? (
-             <div className="flex-1 p-8 overflow-y-auto">
-                 <h2 className="text-3xl font-bold text-white mb-8">{t.settings}</h2>
-                 
-                 <div className="max-w-2xl space-y-8">
-                     {/* General Section */}
-                     <div className="space-y-4">
-                         <h3 className="text-xl font-semibold text-gray-300 border-b border-gray-800 pb-2">{t.general}</h3>
-                         
-                         <div className="flex flex-col space-y-2">
-                             <label className="text-sm font-medium text-gray-400">{t.language}</label>
-                             <select 
-                                value={settings.language}
-                                onChange={(e) => handleSaveSettings({...settings, language: e.target.value as any})}
-                                className="bg-gray-800 border border-gray-700 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                             >
-                                 <option value="en">English</option>
-                                 <option value="nl">Nederlands</option>
-                             </select>
-                         </div>
+          <div className="flex-1 p-8 overflow-y-auto">
+            <h2 className="text-3xl font-bold text-white mb-8">{t.settings}</h2>
 
-                         <div className="flex items-center justify-between p-4 bg-gray-900 rounded-xl border border-gray-800">
-                             <div>
-                                 <h4 className="font-medium text-white">{t.developerMode}</h4>
-                                 <p className="text-sm text-gray-500">{t.developerModeDesc}</p>
-                             </div>
-                             <button 
-                                onClick={() => handleSaveSettings({...settings, developerMode: !settings.developerMode})}
-                                className={`w-12 h-6 rounded-full p-1 transition-colors ${settings.developerMode ? 'bg-blue-600' : 'bg-gray-700'}`}
-                             >
-                                  <div className={`w-4 h-4 bg-white rounded-full transition-transform ${settings.developerMode ? 'translate-x-6' : 'translate-x-0'}`} />
-                             </button>
-                         </div>
-                     </div>
+            <div className="flex space-x-6 border-b border-gray-800 mb-8">
+              <button
+                onClick={() => setSettingsTab('general')}
+                className={`pb-4 px-2 font-medium transition-colors relative ${settingsTab === 'general' ? 'text-blue-400' : 'text-gray-400 hover:text-gray-300'}`}
+              >
+                {t.general}
+                {settingsTab === 'general' && (
+                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-500 rounded-t-full" />
+                )}
+              </button>
+              <button
+                onClick={() => setSettingsTab('extensions')}
+                className={`pb-4 px-2 font-medium transition-colors relative ${settingsTab === 'extensions' ? 'text-blue-400' : 'text-gray-400 hover:text-gray-300'}`}
+              >
+                {t.extensions}
+                {settingsTab === 'extensions' && (
+                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-500 rounded-t-full" />
+                )}
+              </button>
+            </div>
 
-                     {/* Integrations Section */}
-                      <div className="space-y-4">
-                         <h3 className="text-xl font-semibold text-gray-300 border-b border-gray-800 pb-2">{t.integrations}</h3>
-                         
-                          <div className="flex flex-col space-y-2">
-                             <label className="text-sm font-medium text-gray-400">{t.nexusApiKey}</label>
-                             <input 
-                                type="password"
-                                value={settings.nexusApiKey}
-                                onChange={(e) => handleSaveSettings({...settings, nexusApiKey: e.target.value})}
-                                className="bg-gray-800 border border-gray-700 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                                placeholder="API Key..."
-                             />
-                             <p className="text-xs text-gray-500">{t.nexusApiKeyDesc}</p>
-                         </div>
-                      </div>
-                 </div>
-             </div>
+            {settingsTab === 'general' && (
+              <div className="max-w-2xl space-y-8">
+                {/* General Section */}
+                <div className="space-y-4">
+                  <h3 className="text-xl font-semibold text-gray-300 border-b border-gray-800 pb-2">
+                    {t.general}
+                  </h3>
+
+                  <div className="flex flex-col space-y-2">
+                    <label className="text-sm font-medium text-gray-400">{t.language}</label>
+                    <select
+                      value={settings.language}
+                      onChange={(e) =>
+                        handleSaveSettings({ ...settings, language: e.target.value as any })
+                      }
+                      className="bg-gray-800 border border-gray-700 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                    >
+                      <option value="en">English</option>
+                      <option value="nl">Nederlands</option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 bg-gray-900 rounded-xl border border-gray-800">
+                    <div>
+                      <h4 className="font-medium text-white">{t.developerMode}</h4>
+                      <p className="text-sm text-gray-500">{t.developerModeDesc}</p>
+                    </div>
+                    <button
+                      onClick={() =>
+                        handleSaveSettings({ ...settings, developerMode: !settings.developerMode })
+                      }
+                      className={`w-12 h-6 rounded-full p-1 transition-colors ${settings.developerMode ? 'bg-blue-600' : 'bg-gray-700'}`}
+                    >
+                      <div
+                        className={`w-4 h-4 bg-white rounded-full transition-transform ${settings.developerMode ? 'translate-x-6' : 'translate-x-0'}`}
+                      />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Integrations Section */}
+                <div className="space-y-4">
+                  <h3 className="text-xl font-semibold text-gray-300 border-b border-gray-800 pb-2">
+                    {t.integrations}
+                  </h3>
+
+                  <div className="flex flex-col space-y-2">
+                    <label className="text-sm font-medium text-gray-400">{t.nexusApiKey}</label>
+                    <input
+                      type="password"
+                      value={settings.nexusApiKey}
+                      onChange={(e) =>
+                        handleSaveSettings({ ...settings, nexusApiKey: e.target.value })
+                      }
+                      className="bg-gray-800 border border-gray-700 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                      placeholder="API Key..."
+                    />
+                    <p className="text-xs text-gray-500">{t.nexusApiKeyDesc}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {settingsTab === 'extensions' && (
+              <div className="max-w-4xl">
+                <ExtensionManager t={t} onChange={refreshGames} />
+              </div>
+            )}
+          </div>
         ) : currentGame ? (
           <>
             {/* Header / Hero */}
@@ -497,10 +517,10 @@ function App() {
                     <Box className="w-12 h-12 text-gray-600" />
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-white mb-2">{t.initializationRequired}</h3>
-                    <p className="text-gray-400 max-w-sm mx-auto">
-                      {t.initDesc}
-                    </p>
+                    <h3 className="text-xl font-bold text-white mb-2">
+                      {t.initializationRequired}
+                    </h3>
+                    <p className="text-gray-400 max-w-sm mx-auto">{t.initDesc}</p>
                   </div>
                   <button
                     onClick={handleManageGame}
@@ -720,7 +740,9 @@ function App() {
             <h3 className="text-2xl font-bold text-white mb-6">{t.exportModpack}</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">{t.modpackTitle}</label>
+                <label className="block text-sm font-medium text-gray-400 mb-1">
+                  {t.modpackTitle}
+                </label>
                 <input
                   type="text"
                   value={modpackMeta.title}
@@ -749,7 +771,9 @@ function App() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">{t.description}</label>
+                <label className="block text-sm font-medium text-gray-400 mb-1">
+                  {t.description}
+                </label>
                 <textarea
                   value={modpackMeta.description}
                   onChange={(e) => setModpackMeta({ ...modpackMeta, description: e.target.value })}
@@ -757,9 +781,7 @@ function App() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">
-                  {t.iconPath}
-                </label>
+                <label className="block text-sm font-medium text-gray-400 mb-1">{t.iconPath}</label>
                 <div className="flex space-x-2">
                   <input
                     type="text"

@@ -137,19 +137,68 @@ app.whenReady().then(() => {
     }
   })
 
+  ipcMain.handle('get-extension-list', async () => {
+    return await pluginManager.getExtensionList()
+  })
+
+  ipcMain.handle('toggle-extension', async (_, id, enabled) => {
+    return await pluginManager.toggleExtension(id, enabled)
+  })
+
+  ipcMain.handle('delete-extension', async (_, id) => {
+    return await pluginManager.deleteExtension(id)
+  })
+
+  // install-extension-dialog: Now returns content preview if possible
   ipcMain.handle('install-extension-dialog', async (_) => {
     const { canceled, filePaths } = await dialog.showOpenDialog({
       properties: ['openFile'],
       filters: [{ name: 'Mod Manager Extensions', extensions: ['modmanager', 'zip'] }]
     })
 
-    if (canceled || filePaths.length === 0) return false
+    if (canceled || filePaths.length === 0) return { canceled: true }
 
+    // If it's a modmanager file (or zip we treat as package), preview it
+    // For simple js files (if we support that), install direct.
+    // But keeping it consistent: return preview.
     try {
-      await pluginManager.installExtension(filePaths[0])
+      // We need a method to peek inside the zip without installing
+      const preview = await pluginManager.previewExtensionPackage(filePaths[0])
+      return { canceled: false, filePath: filePaths[0], preview }
+    } catch (err: any) {
+      console.error('Extension preview failed', err)
+      return { canceled: true, error: err.message }
+    }
+  })
+
+  ipcMain.handle('install-extensions-confirm', async (_, filePath, selectedFiles) => {
+    try {
+      return await pluginManager.installSelectedExtensions(filePath, selectedFiles)
+    } catch (e) {
+      console.error(e)
+      return false
+    }
+  })
+
+  ipcMain.handle('export-extensions', async (_, extensionIds) => {
+    try {
+      // Create a zip containing all selected extensions
+
+      // Better approach: Let pluginManager handle the bulk export
+      const buffer = await pluginManager.exportExtensionsBulk(extensionIds)
+      if (!buffer) return false
+
+      const { canceled, filePath } = await dialog.showSaveDialog({
+        defaultPath: `modmanager-bundle.modmanager`,
+        filters: [{ name: 'Mod Manager Extension Bundle', extensions: ['modmanager'] }]
+      })
+
+      if (canceled || !filePath) return false
+
+      await require('fs').promises.writeFile(filePath, buffer)
       return true
     } catch (err) {
-      console.error('Extension install failed', err)
+      console.error('Extension export failed', err)
       return false
     }
   })

@@ -4,10 +4,11 @@ export const translations = {
     library: 'Library',
     tools: 'Tools',
     settings: 'Settings',
+    extensions: 'Extensions',
     exportModpack: 'Export Modpack',
     importModpack: 'Import Modpack',
     addExtension: 'Add Extension',
-    exportConfig: 'Export Config',
+    exportExtensions: 'Export Extensions',
     manageGame: 'Manage Game',
     installMod: 'Install Mod',
     browseFolder: 'Browse Folder',
@@ -52,16 +53,22 @@ export const translations = {
     confirmDeleteMod: 'Are you sure you want to delete "{modname}"?',
     confirmDisableAll: 'Disable ALL mods for this game?',
     confirmUnmanage:
-      'Are you sure you want to stop managing "{gamename}"?\n\nThis will:\n1. Disable all currently active mods\n2. Delete all mod files from the staging area\n3. Remove the mod configuration file\n\nThis cannot be undone.'
+      'Are you sure you want to stop managing "{gamename}"?\n\nThis will:\n1. Disable all currently active mods\n2. Delete all mod files from the staging area\n3. Remove the mod configuration file\n\nThis cannot be undone.',
+    noExtensions: 'No extensions installed',
+    enable: 'Enable',
+    disable: 'Disable',
+    delete: 'Delete',
+    selectExtensionsToExport: 'Select Extensions to Export'
   },
   nl: {
     library: 'Bibliotheek',
     tools: 'Gereedschap',
     settings: 'Instellingen',
+    extensions: 'Extensies',
     exportModpack: 'Modpack Exporteren',
     importModpack: 'Modpack Importeren',
     addExtension: 'Extensie Toevoegen',
-    exportConfig: 'Configuratie Exporteren',
+    exportExtensions: 'Extensies Exporteren',
     manageGame: 'Beheer Spel',
     installMod: 'Mod Installeren',
     browseFolder: 'Map Openen',
@@ -106,6 +113,11 @@ export const translations = {
     confirmDeleteMod: 'Weet je zeker dat je "{modname}" wilt verwijderen?',
     confirmDisableAll: 'ALLE mods uitschakelen voor dit spel?',
     confirmUnmanage:
-      'Weet je zeker dat je wilt stoppen met het beheren van "{gamename}"?\n\nDit zal:\n1. Alle actieve mods uitschakelen\n2. Alle mod-bestanden verwijderen uit de staging map\n3. Het mod configuratiebestand verwijderen\n\nDit kan niet ongedaan worden gemaakt.'
+      'Weet je zeker dat je wilt stoppen met het beheren van "{gamename}"?\n\nDit zal:\n1. Alle actieve mods uitschakelen\n2. Alle mod-bestanden verwijderen uit de staging map\n3. Het mod configuratiebestand verwijderen\n\nDit kan niet ongedaan worden gemaakt.',
+    noExtensions: 'Geen extensies geïnstalleerd',
+    enable: 'Inschakelen',
+    disable: 'Uitschakelen',
+    delete: 'Verwijderen',
+    selectExtensionsToExport: 'Selecteer Extensies om te Exporteren'
   }
 }

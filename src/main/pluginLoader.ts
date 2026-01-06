@@ -723,6 +723,14 @@ export class PluginManager {
       const fullPath = path.join(this.pluginsDir, item)
       const stats = fs.lstatSync(fullPath)
       let pluginFile: string | null = null
+      // Scan for disabled extensions well
+      if (
+        item.endsWith('.js.disabled') ||
+        (stats.isDirectory() && fs.existsSync(path.join(fullPath, 'index.js.disabled')))
+      ) {
+        return
+      }
+
       if (stats.isDirectory()) {
         const index = path.join(fullPath, 'index.js')
         if (fs.existsSync(index)) pluginFile = index
@@ -755,6 +763,155 @@ export class PluginManager {
         }
       }
     })
+  }
+
+  async getExtensionList() {
+    // Return both enabled and disabled extensions
+    const result: any[] = []
+
+    // Helper: basic name extraction from source code
+    const extractName = (source: string): string | null => {
+      const match = source.match(/name\s*:\s*(['"`])(.*?)\1/)
+      return match ? match[2] : null
+    }
+
+    // 1. Added loaded plugins
+    for (const [id, plugin] of this.plugins.entries()) {
+      const file = this.pluginFiles.get(id)
+      if (file) {
+        result.push({
+          id: id,
+          name: plugin.name,
+          description: (plugin as any).description || '',
+          enabled: true,
+          path: file,
+          version: (plugin as any).version || '1.0.0'
+        })
+      }
+    }
+
+    // 2. Scan for disabled files
+    if (fs.existsSync(this.pluginsDir)) {
+      const items = fs.readdirSync(this.pluginsDir)
+      items.forEach((item) => {
+        const fullPath = path.join(this.pluginsDir, item)
+        if (item.endsWith('.js.disabled')) {
+          // Try to loosely parse ID/Name
+          const potentialId = item.replace('.js.disabled', '')
+          let name = potentialId + ' (Disabled)'
+          try {
+            if (fs.existsSync(fullPath)) {
+              const content = fs.readFileSync(fullPath, 'utf-8')
+              const extracted = extractName(content)
+              if (extracted) name = extracted + ' (Disabled)'
+            }
+          } catch (e) {}
+
+          result.push({
+            id: potentialId,
+            name: name,
+            enabled: false,
+            path: fullPath
+          })
+        } else if (fs.lstatSync(fullPath).isDirectory()) {
+          if (fs.existsSync(path.join(fullPath, 'index.js.disabled'))) {
+            const indexPath = path.join(fullPath, 'index.js.disabled')
+            let name = item + ' (Disabled)'
+            try {
+              const content = fs.readFileSync(indexPath, 'utf-8')
+              const extracted = extractName(content)
+              if (extracted) name = extracted + ' (Disabled)'
+            } catch (e) {}
+
+            result.push({
+              id: item,
+              name: name,
+              enabled: false,
+              path: indexPath
+            })
+          }
+        }
+      })
+    }
+    return result
+  }
+
+  async toggleExtension(id: string, enabled: boolean) {
+    // Find the file path
+    let targetPath: string | null = this.pluginFiles.get(id) || null
+
+    // If enabling, we need to find the disabled file
+    if (enabled && !targetPath) {
+      // scan directory for .disabled matching id
+      // This is tricky if ID != filename. We assume here simple mapping for now or scan all?
+      // Let's assume standardized naming for now or just scan dir
+      if (fs.existsSync(this.pluginsDir)) {
+        const items = fs.readdirSync(this.pluginsDir)
+        for (const item of items) {
+          if (item === id + '.js.disabled') {
+            targetPath = path.join(this.pluginsDir, item)
+            break
+          }
+          const fullPath = path.join(this.pluginsDir, item)
+          if (fs.lstatSync(fullPath).isDirectory()) {
+            // check inside
+            if (fs.existsSync(path.join(fullPath, 'index.js.disabled'))) {
+              // How do we know this folder maps to 'id'?
+              // We might not if we can't run the code.
+              // Current simplification: folder name = id
+              if (item === id) {
+                targetPath = path.join(fullPath, 'index.js.disabled')
+              }
+            }
+          }
+        }
+      }
+    }
+
+    if (!targetPath) return false
+
+    try {
+      const newPath = enabled ? targetPath.replace('.disabled', '') : targetPath + '.disabled'
+      fs.renameSync(targetPath, newPath)
+      this.loadPlugins()
+      return true
+    } catch (e) {
+      console.error('Failed to toggle extension', e)
+      return false
+    }
+  }
+
+  async deleteExtension(id: string) {
+    let targetPath: string | null = this.pluginFiles.get(id) || null
+    // Check for disabled variant if not found
+    if (!targetPath) {
+      // reuse logic or simplify
+      // Try standard paths
+      if (fs.existsSync(path.join(this.pluginsDir, id + '.js.disabled'))) {
+        targetPath = path.join(this.pluginsDir, id + '.js.disabled')
+      }
+    }
+
+    if (!targetPath) return false
+
+    try {
+      // If it's an index.js, delete the parent folder?
+      const parentDir = path.dirname(targetPath)
+      if (path.basename(targetPath).startsWith('index.js')) {
+        // Delete parent folder (the extension folder)
+        // Safety: Ensure parent is inside pluginsDir
+        if (path.resolve(path.dirname(parentDir)) === path.resolve(this.pluginsDir)) {
+          fs.rmSync(parentDir, { recursive: true, force: true })
+        }
+      } else {
+        // Single file
+        fs.unlinkSync(targetPath)
+      }
+      this.loadPlugins()
+      return true
+    } catch (e) {
+      return false
+    }
   }
 
   getPlugins() {
@@ -809,11 +966,109 @@ export class PluginManager {
   async exportExtension(pluginId: string): Promise<Buffer | null> {
     const mainFile = this.pluginFiles.get(pluginId)
     if (!mainFile) return null
-    const pluginDir = path.dirname(mainFile)
+
     const zip = new AdmZip()
-    console.log(pluginDir)
-    zip.addLocalFolder(pluginDir)
+
+    // Check if it is a directory-based plugin or single file
+    if (path.basename(mainFile) === 'index.js') {
+      const pluginDir = path.dirname(mainFile)
+      zip.addLocalFolder(pluginDir)
+    } else {
+      // Single file
+      zip.addLocalFile(mainFile)
+    }
+
     return zip.toBuffer()
+  }
+
+  async exportExtensionsBulk(ids: string[]): Promise<Buffer | null> {
+    const zip = new AdmZip()
+    for (const id of ids) {
+      const file = this.pluginFiles.get(id)
+      // Also check for disabled
+      if (file) {
+        if (path.basename(file) === 'index.js') {
+          const dir = path.dirname(file)
+          zip.addLocalFolder(dir, path.basename(dir))
+        } else {
+          zip.addLocalFile(file)
+        }
+      } else {
+        // Try disabled
+        if (fs.existsSync(path.join(this.pluginsDir, id + '.js.disabled'))) {
+          zip.addLocalFile(path.join(this.pluginsDir, id + '.js.disabled'))
+        }
+      }
+    }
+    return zip.toBuffer()
+  }
+
+  async previewExtensionPackage(zipPath: string) {
+    const zip = new AdmZip(zipPath)
+    const entries = zip.getEntries()
+    const extensions: any[] = []
+
+    // Heuristic: Look for .js files in root or index.js in 1-level deep folders
+    // For now, simplify: All .js files in root are extensions.
+    // All folders containing index.js are extensions.
+
+    for (const entry of entries) {
+      if (entry.isDirectory) continue
+
+      if (!entry.entryName.includes('/') && entry.entryName.endsWith('.js')) {
+        extensions.push({
+          type: 'file',
+          path: entry.entryName,
+          name: entry.entryName.replace('.js', '')
+        })
+      } else if (entry.entryName.match(/^[^/]+\/index\.js$/)) {
+        // folder/index.js
+        const folder = entry.entryName.split('/')[0]
+        extensions.push({
+          type: 'folder',
+          path: folder, // Extract this folder
+          name: folder
+        })
+      }
+    }
+    return extensions
+  }
+
+  async installSelectedExtensions(zipPath: string, selectedPaths: string[]) {
+    const zip = new AdmZip(zipPath)
+
+    try {
+      // Extract specific entries
+      for (const target of selectedPaths) {
+        // If it's a folder (from preview), we need to extract that folder
+        // If it's a file, extract file.
+
+        const entry = zip.getEntry(target)
+        if (entry) {
+          // Single file
+          zip.extractEntryTo(target, this.pluginsDir, false, true)
+        } else {
+          // Maybe it was a folder name we stored in 'path'
+          // Extract all entries starting with target/
+          // AdmZip extractEntryTo can extract a folder if entry is a folder?
+          // No, getEntry for folder might work if it ends with /
+
+          // Let's filter entries
+          const folderEntries = zip.getEntries().filter((e) => e.entryName.startsWith(target + '/'))
+          folderEntries.forEach((e) => {
+            // relative path calculation?
+            // extractEntryTo(entry, targetPath, maintainEntryPath, overwrite)
+            // If we maintain path, it puts it in pluginsDir/target/... which is what we want
+            zip.extractEntryTo(e, this.pluginsDir, true, true)
+          })
+        }
+      }
+      this.loadPlugins()
+      return true
+    } catch (e) {
+      console.error(e)
+      throw e
+    }
   }
 
   // --- Modpack Management ---
