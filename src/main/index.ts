@@ -56,6 +56,10 @@ app.whenReady().then(() => {
     return pluginManager.getPlugins()
   })
 
+  ipcMain.handle('get-app-version', () => {
+    return app.getVersion()
+  })
+
   // run commands
   ipcMain.handle('run-extension-command', async (_event, gameId, command, ...args) => {
     try {

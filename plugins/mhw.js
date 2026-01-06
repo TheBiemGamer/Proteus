@@ -1,6 +1,8 @@
 module.exports.default = {
   id: 'mhw',
   name: 'Monster Hunter: World',
+  version: '1.0.0',
+  author: 'TheBiemGamer',
   modSources: [{ text: 'Nexus Mods', url: 'https://www.nexusmods.com/monsterhunterworld' }],
   executable: 'MonsterHunterWorld.exe',
   steamAppId: '582010',

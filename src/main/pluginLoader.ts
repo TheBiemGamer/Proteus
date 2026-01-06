@@ -785,7 +785,8 @@ export class PluginManager {
           description: (plugin as any).description || '',
           enabled: true,
           path: file,
-          version: (plugin as any).version || '1.0.0'
+          version: (plugin as any).version || '1.0.0',
+          author: (plugin as any).author || 'Unknown'
         })
       }
     }

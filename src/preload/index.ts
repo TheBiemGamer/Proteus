@@ -41,6 +41,8 @@ const api = {
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (settings: any) => ipcRenderer.invoke('save-settings', settings),
 
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+
   openUrl: (url: string) => ipcRenderer.invoke('open-url', url)
 }
 

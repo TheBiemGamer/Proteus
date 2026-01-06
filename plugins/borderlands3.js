@@ -1,6 +1,8 @@
 module.exports.default = {
   id: 'borderlands3',
   name: 'Borderlands 3',
+  version: '1.0.0',
+  author: 'TheBiemGamer',
   modSources: [
     { text: 'Nexus Mods', url: 'https://www.nexusmods.com/borderlands3' },
     { text: 'BLCM Wiki', url: 'https://github.com/BLCM/bl3mods/wiki' }

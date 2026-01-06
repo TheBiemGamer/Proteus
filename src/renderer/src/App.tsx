@@ -54,6 +54,7 @@ function App() {
   const [isManaging, setIsManaging] = useState(false)
   const [gameHealth, setGameHealth] = useState<any>({ valid: true })
   const [showSourcesMenu, setShowSourcesMenu] = useState(false)
+  const [appVersion, setAppVersion] = useState<string>('')
 
   // Settings
   const [view, setView] = useState<'library' | 'settings'>('library')
@@ -63,7 +64,7 @@ function App() {
     startMaximized: false,
     nexusApiKey: ''
   })
-  const [settingsTab, setSettingsTab] = useState<'general' | 'extensions'>('general')
+  const [settingsTab, setSettingsTab] = useState<'general' | 'extensions' | 'about'>('general')
 
   // Short helper for translation
   const t = translations[settings.language] || translations.en
@@ -82,7 +83,13 @@ function App() {
   useEffect(() => {
     refreshGames()
     loadSettings()
+    loadAppVersion()
   }, [])
+
+  const loadAppVersion = async () => {
+    const v = await (window as any).electron.getAppVersion()
+    setAppVersion(v)
+  }
 
   const loadSettings = async () => {
     const s = await (window as any).electron.getSettings()
@@ -347,6 +354,15 @@ function App() {
                   <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-500 rounded-t-full" />
                 )}
               </button>
+              <button
+                onClick={() => setSettingsTab('about')}
+                className={`pb-4 px-2 font-medium transition-colors relative ${settingsTab === 'about' ? 'text-blue-400' : 'text-gray-400 hover:text-gray-300'}`}
+              >
+                About
+                {settingsTab === 'about' && (
+                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-500 rounded-t-full" />
+                )}
+              </button>
             </div>
 
             {settingsTab === 'general' && (
@@ -415,6 +431,66 @@ function App() {
             {settingsTab === 'extensions' && (
               <div className="max-w-4xl">
                 <ExtensionManager t={t} onChange={refreshGames} />
+              </div>
+            )}
+
+            {settingsTab === 'about' && (
+              <div className="max-w-2xl space-y-6">
+                <div className="bg-gray-900 border border-gray-800 rounded-xl p-8 text-center space-y-4">
+                  <h3 className="text-3xl font-black bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+                    ModManager
+                  </h3>
+                  <p className="text-gray-400">
+                    A modular, extensible mod manager for various games, built with Electron and
+                    React.
+                  </p>
+                  <div className="flex justify-center space-x-4 text-sm text-gray-500 pt-4">
+                    <div>
+                      <span className="font-semibold text-gray-400">Version</span>
+                      <p>{appVersion}</p>
+                    </div>
+                    <div>
+                      <span className="font-semibold text-gray-400">Author</span>
+                      <p>TheBiemGamer</p>
+                    </div>
+                    <div>
+                      <span className="font-semibold text-gray-400">License</span>
+                      <p>MIT</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+                  <h4 className="font-semibold text-white mb-4">License</h4>
+                  <div className="bg-gray-950/50 rounded-lg p-4 border border-gray-800/50">
+                    <div className="text-xs text-gray-400 font-mono space-y-2 max-h-48 overflow-y-auto pr-2">
+                      <p>MIT License</p>
+                      <p>Copyright (c) 2026 TheBiemGamer</p>
+                      <p>
+                        Permission is hereby granted, free of charge, to any person obtaining a copy
+                        of this software and associated documentation files (the
+                        &quot;Software&quot;), to deal in the Software without restriction,
+                        including without limitation the rights to use, copy, modify, merge,
+                        publish, distribute, sublicense, and/or sell copies of the Software, and to
+                        permit persons to whom the Software is furnished to do so, subject to the
+                        following conditions:
+                      </p>
+                      <p>
+                        The above copyright notice and this permission notice shall be included in
+                        all copies or substantial portions of the Software.
+                      </p>
+                      <p>
+                        THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND,
+                        EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+                        MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO
+                        EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+                        DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+                        OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+                        USE OR OTHER DEALINGS IN THE SOFTWARE.
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -822,18 +898,30 @@ function App() {
                   <h2 className="text-3xl font-bold text-white shadow-sm">
                     {previewModpack.meta.title}
                   </h2>
-                  <p className="text-indigo-300">
-                    v{previewModpack.meta.version} by {previewModpack.meta.author}
-                  </p>
+                  <div className="flex items-center space-x-2 text-indigo-300 mt-1">
+                    <span className="font-semibold px-2 py-0.5 rounded bg-black/40 border border-white/10 text-xs uppercase tracking-wider text-white">
+                      {games.find((g) => g.id === previewModpack.meta.gameId)?.name ||
+                        previewModpack.meta.gameId}
+                    </span>
+                    <span>
+                      v{previewModpack.meta.version} by {previewModpack.meta.author}
+                    </span>
+                  </div>
                 </div>
               </div>
             )}
             {!previewModpack.image && (
               <div className="p-8 border-b border-gray-800">
                 <h2 className="text-3xl font-bold text-white">{previewModpack.meta.title}</h2>
-                <p className="text-indigo-300">
-                  v{previewModpack.meta.version} by {previewModpack.meta.author}
-                </p>
+                <div className="flex items-center space-x-2 text-indigo-300 mt-3">
+                  <span className="font-semibold px-2 py-0.5 rounded bg-indigo-900/50 border border-indigo-500/30 text-indigo-200 text-xs uppercase tracking-wider">
+                    {games.find((g) => g.id === previewModpack.meta.gameId)?.name ||
+                      previewModpack.meta.gameId}
+                  </span>
+                  <span>
+                    v{previewModpack.meta.version} by {previewModpack.meta.author}
+                  </span>
+                </div>
               </div>
             )}
 

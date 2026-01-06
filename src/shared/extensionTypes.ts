@@ -4,4 +4,6 @@ export interface IExtensionInfo {
   path: string // Absolute path to main file
   isDirectory: boolean
   enabled: boolean
+  version?: string
+  author?: string
 }

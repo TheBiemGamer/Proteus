@@ -5,6 +5,7 @@ interface Extension {
   id: string
   name: string
   version: string
+  author?: string
   enabled: boolean
 }
 
@@ -123,6 +124,7 @@ export function ExtensionManager({ t, onChange }: { t: any; onChange?: () => voi
                   </div>
                 </th>
                 <th className="p-4">{t.modpackTitle}</th>
+                <th className="p-4 w-24">Author</th>
                 <th className="p-4 w-24">Version</th>
                 <th className="p-4 w-24">Status</th>
                 <th className="p-4 w-24 text-right">Actions</th>
@@ -152,6 +154,7 @@ export function ExtensionManager({ t, onChange }: { t: any; onChange?: () => voi
                     </div>
                   </td>
                   <td className="p-4 font-medium text-gray-300">{ext.name}</td>
+                  <td className="p-4 text-gray-400 text-sm">{ext.author || 'Unknown'}</td>
                   <td className="p-4 text-gray-500 font-mono text-xs">{ext.version || '1.0.0'}</td>
                   <td className="p-4">
                     <span
