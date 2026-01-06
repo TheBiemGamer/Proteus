@@ -5,7 +5,7 @@ import icon from '../../resources/icon.png?asset'
 import { PluginManager } from './pluginLoader'
 import { SettingsManager } from './settings'
 
-const pluginManager = new PluginManager(process.cwd())
+const pluginManager = new PluginManager(is.dev ? process.cwd() : process.resourcesPath)
 const settingsManager = new SettingsManager()
 
 function createWindow(): void {
