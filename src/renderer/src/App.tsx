@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import './assets/main.css'
 
 interface Game {
@@ -8,21 +8,34 @@ interface Game {
   managed: boolean
   path: string
   steamAppId?: string
+  nexusSlug?: string
 }
 
 interface Mod {
   id: string
   name: string
   enabled: boolean
-  type: 'mod' | 'loader'
+  type: string
   version?: string
   nexusId?: string
 }
 
-function App(): JSX.Element {
+const getTypeColor = (type: string) => {
+  const t = type.toLowerCase()
+  if (t.includes('hotfix')) return 'bg-orange-500/10 text-orange-300 border border-orange-500/20'
+  if (t.includes('sdk')) return 'bg-yellow-500/10 text-yellow-300 border border-yellow-500/20'
+  if (t.includes('pak')) return 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20'
+  if (t === 'loader' || t === 'binaries')
+    return 'bg-purple-500/10 text-purple-300 border border-purple-500/20'
+  return 'bg-blue-500/10 text-blue-300 border border-blue-500/20'
+}
+
+function App() {
   const [games, setGames] = useState<Game[]>([])
   const [selectedGame, setSelectedGame] = useState<string | null>(null)
   const [mods, setMods] = useState<Mod[]>([])
+  const [isManaging, setIsManaging] = useState(false)
+  const [gameHealth, setGameHealth] = useState<any>({ valid: true })
 
   useEffect(() => {
     refreshGames()
@@ -31,8 +44,14 @@ function App(): JSX.Element {
   useEffect(() => {
     if (selectedGame) {
       loadMods(selectedGame)
+      checkHealth(selectedGame)
     }
   }, [selectedGame])
+
+  const checkHealth = async (gameId: string) => {
+    const health = await (window as any).electron.validateGame(gameId)
+    setGameHealth(health)
+  }
 
   const refreshGames = async () => {
     const list = await (window as any).electron.getExtensions()
@@ -47,6 +66,7 @@ function App(): JSX.Element {
     if (game && game.managed) {
       const list = await (window as any).electron.getMods(gameId)
       setMods(list)
+      checkHealth(gameId)
     } else {
       setMods([])
     }
@@ -54,12 +74,17 @@ function App(): JSX.Element {
 
   const handleManageGame = async () => {
     if (!selectedGame) return
-    const updatedGames = await (window as any).electron.manageGame(selectedGame)
-    setGames(updatedGames)
-    const game = (updatedGames as Game[]).find((g) => g.id === selectedGame)
-    if (game && game.managed) {
-      const list = await (window as any).electron.getMods(selectedGame)
-      setMods(list)
+    setIsManaging(true)
+    try {
+      const updatedGames = await (window as any).electron.manageGame(selectedGame)
+      setGames(updatedGames)
+      const game = (updatedGames as Game[]).find((g) => g.id === selectedGame)
+      if (game && game.managed) {
+        const list = await (window as any).electron.getMods(selectedGame)
+        setMods(list)
+      }
+    } finally {
+      setIsManaging(false)
     }
   }
 
@@ -88,6 +113,20 @@ function App(): JSX.Element {
     if (confirm('Disable ALL mods for this game?')) {
       await (window as any).electron.disableAllMods(selectedGame)
       loadMods(selectedGame)
+    }
+  }
+
+  const handleUnmanageGame = async () => {
+    if (!selectedGame) return
+    const game = games.find((g) => g.id === selectedGame)
+    if (!game) return
+
+    const confirmMsg = `Are you sure you want to stop managing "${game.name}"?\n\nThis will:\n1. Disable all currently active mods\n2. Delete all mod files from the staging area\n3. Remove the mod configuration file\n\nThis cannot be undone.`
+
+    if (confirm(confirmMsg)) {
+      const updatedGames = await (window as any).electron.unmanageGame(selectedGame)
+      setGames(updatedGames)
+      setMods([]) // Clear mods view
     }
   }
 
@@ -246,6 +285,27 @@ function App(): JSX.Element {
                       <span>Install Mod</span>
                     </button>
                   )}
+                  {currentGame.managed && (
+                    <button
+                      onClick={() => (window as any).electron.openUrl(currentGame.path)}
+                      className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg shadow-lg hover:shadow-gray-500/20 font-semibold transition-all flex items-center space-x-2"
+                      title="Open Game Folder"
+                    >
+                      <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"
+                        />
+                      </svg>
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -273,6 +333,13 @@ function App(): JSX.Element {
                         Disable All
                       </button>
                     )}
+                    <button
+                      onClick={handleUnmanageGame}
+                      className="px-3 py-1.5 text-xs font-medium text-rose-300 hover:text-white bg-rose-900/10 hover:bg-rose-900/80 border border-rose-900/30 hover:border-rose-700/50 rounded transition-all"
+                      title="Stop managing this game and remove all mod data"
+                    >
+                      Unmanage
+                    </button>
                   </div>
                 </div>
               )}
@@ -311,13 +378,121 @@ function App(): JSX.Element {
                   </div>
                   <button
                     onClick={handleManageGame}
-                    className="px-8 py-3 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white rounded-xl shadow-lg hover:shadow-blue-500/25 font-bold text-lg transition-all transform hover:-translate-y-1"
+                    disabled={isManaging}
+                    className={`px-8 py-3 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white rounded-xl shadow-lg hover:shadow-blue-500/25 font-bold text-lg transition-all transform hover:-translate-y-1 ${
+                      isManaging ? 'cursor-not-allowed opacity-80' : ''
+                    }`}
                   >
-                    Manage Game
+                    {isManaging ? (
+                      <div className="flex items-center space-x-2">
+                        <svg
+                          className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          ></circle>
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                          ></path>
+                        </svg>
+                        Setting up...
+                      </div>
+                    ) : (
+                      'Manage Game'
+                    )}
                   </button>
                 </div>
               ) : (
                 <div className="space-y-3 pb-10">
+                  {/* Health Warning Banner */}
+                  {!gameHealth.valid && (
+                    <div className="bg-yellow-500/10 border border-yellow-500/20 p-4 rounded-xl flex items-start space-x-4 mb-4">
+                      <div className="p-2 bg-yellow-500/20 rounded-lg text-yellow-500">
+                        <svg
+                          className="w-6 h-6"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                          />
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-bold text-yellow-200">Requirement Missing</h3>
+                        <p className="text-sm text-yellow-200/70 mt-1">
+                          {gameHealth.message ||
+                            'This game requires dependencies that are not installed.'}
+                        </p>
+                        {gameHealth.link && !gameHealth.links && (
+                          <a
+                            href={gameHealth.link}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center space-x-2 mt-3 text-sm font-medium text-yellow-400 hover:text-yellow-300"
+                          >
+                            <span>{gameHealth.linkText || 'Download Requirement'}</span>
+                            <svg
+                              className="w-4 h-4"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth="2"
+                                d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                              />
+                            </svg>
+                          </a>
+                        )}
+                        {gameHealth.links && (
+                          <div className="flex flex-wrap gap-3 mt-3">
+                            {gameHealth.links.map((link: any, i: number) => (
+                              <a
+                                key={i}
+                                href={link.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center space-x-2 text-sm font-medium text-yellow-400 hover:text-yellow-300 bg-yellow-400/10 px-3 py-1.5 rounded-lg border border-yellow-400/20 hover:bg-yellow-400/20"
+                              >
+                                <span>{link.text}</span>
+                                <svg
+                                  className="w-4 h-4"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth="2"
+                                    d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                                  />
+                                </svg>
+                              </a>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   {mods.length === 0 ? (
                     <div className="border-2 border-dashed border-gray-800 rounded-2xl flex flex-col items-center justify-center h-64 text-gray-500">
                       <p className="font-medium">No mods installed</p>
@@ -349,7 +524,9 @@ function App(): JSX.Element {
                               )}
                               {mod.nexusId && (
                                 <a
-                                  href={`https://www.nexusmods.com/${currentGame?.id === 'mhw' ? 'monsterhunterworld' : 'games'}/mods/${mod.nexusId}`}
+                                  href={`https://www.nexusmods.com/${
+                                    currentGame?.nexusSlug || 'games'
+                                  }/mods/${mod.nexusId}`}
                                   target="_blank"
                                   rel="noreferrer"
                                   className="text-gray-600 hover:text-blue-400 transition-colors"
@@ -363,7 +540,7 @@ function App(): JSX.Element {
 
                             <div className="flex items-center mt-1 space-x-2">
                               <span
-                                className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded ${mod.type === 'loader' ? 'bg-purple-500/10 text-purple-300 border border-purple-500/20' : 'bg-blue-500/10 text-blue-300 border border-blue-500/20'}`}
+                                className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded ${getTypeColor(mod.type)}`}
                               >
                                 {mod.type}
                               </span>

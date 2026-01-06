@@ -14,7 +14,7 @@ export interface IMod {
   enabled: boolean
   installDate: number
   files: string[] // List of absolute paths installed
-  type: 'mod' | 'loader'
+  type: 'mod' | 'loader' | string
   version?: string
   nexusId?: string
 }

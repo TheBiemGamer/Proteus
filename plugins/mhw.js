@@ -1,8 +1,10 @@
 module.exports.default = {
   id: 'mhw',
   name: 'Monster Hunter: World',
+  nexusSlug: 'monsterhunterworld',
   executable: 'MonsterHunterWorld.exe',
   steamAppId: '582010',
+  modFileExtensions: ['zip', 'rar', '7z', 'mod'],
 
   detect: async (candidates) => {
     const path = require('path')
@@ -15,6 +17,40 @@ module.exports.default = {
     return null
   },
 
+  prepareForModding: async (gamePath) => {
+    const path = require('path')
+    // Check for Stracker's Loader (dinput8.dll or loader.dll usually)
+    const loaderCheck = path.join(gamePath, 'dinput8.dll')
+    const loaderCheck2 = path.join(gamePath, 'loader.dll')
+
+    if (!sandbox.manager.fileExists(loaderCheck) && !sandbox.manager.fileExists(loaderCheck2)) {
+      sandbox.console.log("Stracker's Loader not found.")
+      await sandbox.manager.showAlert(
+        "Stracker's Loader Required",
+        "Monster Hunter World mods require Stracker's Loader to function correctly.\n\nPlease download and install it from Nexus Mods."
+      )
+      await sandbox.manager.openUrl('https://www.nexusmods.com/monsterhunterworld/mods/1982')
+    } else {
+      sandbox.console.log("Stracker's Loader detected.")
+    }
+  },
+  checkRequirements: async (gamePath) => {
+    const path = require('path')
+    const loaderCheck = path.join(gamePath, 'dinput8.dll')
+    const loaderCheck2 = path.join(gamePath, 'loader.dll')
+
+    // Return true if loader exists, false if missing
+    if (sandbox.manager.fileExists(loaderCheck) || sandbox.manager.fileExists(loaderCheck2)) {
+      return { valid: true }
+    }
+
+    return {
+      valid: false,
+      message: "Stracker's Loader is missing. Mods will not load without it.",
+      link: 'https://www.nexusmods.com/monsterhunterworld/mods/1982',
+      linkText: "Download Stracker's Loader"
+    }
+  },
   install: async (sourcePath, gamePath, originalZipPath) => {
     const path = require('path')
     sandbox.console.log(`Deploying from ${sourcePath}...`)

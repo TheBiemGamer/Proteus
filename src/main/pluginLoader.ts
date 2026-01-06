@@ -87,9 +87,12 @@ export class PluginManager {
     if (!this.activeGamePath) return false
     const resolvedTarget = path.resolve(targetPath)
     const resolvedSafe = path.resolve(this.activeGamePath)
-    // Allow Staging dir too? Plugins might read from staging during install
-    // But `copyFile` target must be safe (Game Path).
-    // `symlinkFile` target must be safe.
+
+    // Case-insensitive check for Windows to avoid drive letter casing issues
+    if (process.platform === 'win32') {
+      return resolvedTarget.toLowerCase().startsWith(resolvedSafe.toLowerCase())
+    }
+
     return resolvedTarget.startsWith(resolvedSafe)
   }
 
@@ -189,12 +192,52 @@ export class PluginManager {
           if (!this.isSafePath(filePath)) throw new Error(`Access Denied: ${filePath}`)
           if (fs.existsSync(filePath)) fs.unlinkSync(filePath)
         },
-        downloadFile: async (url: string, relativeDest: string) => {
-          return true
+        downloadFile: async (url: string, dest: string) => {
+          if (!this.isSafePath(dest)) throw new Error(`Access Denied: ${dest}`)
+          try {
+            const response = await axios({ url, method: 'GET', responseType: 'stream' })
+            const writer = fs.createWriteStream(dest)
+            response.data.pipe(writer)
+            return new Promise<void>((resolve, reject) => {
+              writer.on('finish', () => resolve())
+              writer.on('error', reject)
+            })
+          } catch (e) {
+            console.error('Download failed', e)
+            throw e
+          }
         },
         getGamePath: () => {
           if (this.activeGamePath === 'SAFE_MODE_DETECT') return null
           return this.activeGamePath
+        },
+        registerMod: (mod: IMod) => {
+          // Allow plugins to register "virtual" or auto-installed mods into the manifest
+          if (!this.activeGameId) return
+          const manifest = this.readManifest(this.activeGameId)
+          // Avoid duplicates
+          const existing = manifest.mods.find((m) => m.id === mod.id)
+          if (!existing) {
+            manifest.mods.push(mod)
+            this.writeManifest(this.activeGameId, manifest)
+          }
+        },
+        installMod: async (zipPath: string, options?: { autoEnable?: boolean }) => {
+          if (!this.activeGameId) throw new Error('No active game')
+          // Call the main installMod function
+          // We pass the zip path (which should be in a safe temp location or similar)
+          return self.installMod(this.activeGameId, zipPath, options?.autoEnable)
+        },
+        openUrl: async (url: string) => {
+          await require('electron').shell.openExternal(url)
+        },
+        showAlert: async (title: string, message: string) => {
+          await require('electron').dialog.showMessageBox({
+            type: 'info',
+            title,
+            message,
+            buttons: ['OK']
+          })
         }
       }
     }
@@ -233,7 +276,8 @@ export class PluginManager {
           detected: true,
           managed: manifest.managed,
           path: this.gamePaths[id],
-          steamAppId: plugin.steamAppId
+          steamAppId: plugin.steamAppId,
+          nexusSlug: plugin.nexusSlug
         })
       }
     }
@@ -248,6 +292,13 @@ export class PluginManager {
     let manifest = this.readManifest(gameId)
     manifest.managed = true
     this.writeManifest(gameId, manifest)
+
+    // Plugin Hook: Prepare For Modding (e.g. downloading Loaders/SDKs)
+    try {
+      await this.runCommand(gameId, 'prepareForModding', this.gamePaths[gameId])
+    } catch (e) {
+      console.warn(`[PM] prepareForModding failed for ${gameId}`, e)
+    }
 
     // 2. Auto-install Loader if present
     const pluginFile = this.pluginFiles.get(gameId)
@@ -268,6 +319,35 @@ export class PluginManager {
     return this.getGamesInternal()
   }
 
+  async unmanageGame(gameId: string) {
+    if (!this.gamePaths[gameId]) throw new Error('Game path not known')
+
+    // 1. Disable all mods (restores vanilla state roughly)
+    await this.disableAllMods(gameId)
+
+    // 2. Nuke Staging Directory for this game
+    const gameStagingDir = path.join(this.stagingDir, gameId)
+    if (fs.existsSync(gameStagingDir)) {
+      try {
+        fs.rmSync(gameStagingDir, { recursive: true, force: true })
+      } catch (e) {
+        console.error('Failed to remove staging dir', e)
+      }
+    }
+
+    // 3. Remove Manifest File
+    const manifestPath = this.getManifestPath(gameId)
+    if (manifestPath && fs.existsSync(manifestPath)) {
+      try {
+        fs.unlinkSync(manifestPath)
+      } catch (e) {
+        console.error('Failed to remove manifest', e)
+      }
+    }
+
+    return this.getGamesInternal()
+  }
+
   private get7zBinary(): string {
     const isWin = process.platform === 'win32'
     if (isWin) {
@@ -277,7 +357,7 @@ export class PluginManager {
         path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', '7-Zip', '7z.exe')
       ]
       for (const p of possiblePaths) {
-         if (fs.existsSync(p)) return p
+        if (fs.existsSync(p)) return p
       }
     }
     // Fallback to bundled 7za (No RAR support)
@@ -286,7 +366,14 @@ export class PluginManager {
 
   private async extractArchive(src: string, dest: string): Promise<void> {
     const ext = path.extname(src).toLowerCase()
-    
+
+    // If it's not a known archive format, assume it's a single file mod
+    if (!['.zip', '.rar', '.7z', '.mod'].includes(ext)) {
+      const fileName = path.basename(src)
+      fs.copyFileSync(src, path.join(dest, fileName))
+      return
+    }
+
     // Prefer AdmZip for pure zips/mods as it is faster/sync (though we wrap in async here)
     if (ext === '.zip' || ext === '.mod') {
       try {
@@ -300,28 +387,32 @@ export class PluginManager {
     }
 
     const bin = this.get7zBinary()
-    
+
     // Warning for RAR if no system 7z
     if (ext === '.rar' && bin.endsWith('7za.exe')) {
-        console.warn("Attempting to extract RAR with 7za.exe. This usually fails. Install 7-Zip.")
+      console.warn('Attempting to extract RAR with 7za.exe. This usually fails. Install 7-Zip.')
     }
 
     // 7zip extraction for rar, 7z, or failed zips
     return new Promise((resolve, reject) => {
-       const stream = Seven.extractFull(src, dest, {
-          $bin: bin,
-       })
-       stream.on('end', () => resolve())
-       stream.on('error', (err: any) => {
-          // Improve Error Message for RAR
-          if (ext === '.rar' && bin.endsWith('7za.exe')) {
-              reject(new Error("Failed to extract .rar file. Please install 7-Zip (64-bit) in the default location to support RAR archives."))
-          } else {
-              // Log stderr for debugging
-              if (err.stderr) console.error("7z Stderr:", err.stderr)
-              reject(err)
-          }
-       })
+      const stream = Seven.extractFull(src, dest, {
+        $bin: bin
+      })
+      stream.on('end', () => resolve())
+      stream.on('error', (err: any) => {
+        // Improve Error Message for RAR
+        if (ext === '.rar' && bin.endsWith('7za.exe')) {
+          reject(
+            new Error(
+              'Failed to extract .rar file. Please install 7-Zip (64-bit) in the default location to support RAR archives.'
+            )
+          )
+        } else {
+          // Log stderr for debugging
+          if (err.stderr) console.error('7z Stderr:', err.stderr)
+          reject(err)
+        }
+      })
     })
   }
 
@@ -341,13 +432,21 @@ export class PluginManager {
     let manifest = this.readManifest(gameId)
 
     // Determine type
-    let type: 'mod' | 'loader' = 'mod'
-    if (
+    let type: 'mod' | 'loader' | string = 'mod'
+
+    // Check if plugin has custom type logic
+    const customType = await this.runCommand(gameId, 'determineModType', modStagingPath)
+    if (customType && typeof customType === 'string') {
+      type = customType
+    } else if (
       fs.existsSync(path.join(modStagingPath, 'dinput8.dll')) ||
       zipPath.toLowerCase().includes('loader')
     ) {
       type = 'loader'
     }
+
+    // Refresh Validation (in case this WAS the loader)
+    // We don't need explicit logic here because the UI will call validateGame after install
 
     // Parse Nexus Filename Metadata
     const filenameNoExt = path.parse(zipPath).name
@@ -360,56 +459,66 @@ export class PluginManager {
     // Logic:
     // 1. Extract and remove Timestamp (digits at end)
     // 2. Parse remainder as Name-ID-Version using the "Left-most ID" principle for ambiguity.
-    
+
     // Step 1: Timestamp
     let remainder = filenameNoExt
-    let timestamp: string | undefined
-    
-    // Check for timestamp at end (digits preceded by hyphen)
-    const tsMatch = remainder.match(/-(\d+)$/)
-    if (tsMatch) {
-        timestamp = tsMatch[1]
-        remainder = remainder.substring(0, remainder.length - tsMatch[0].length)
-        
-        // Step 2: Parse Name-ID-Version
-        // We start with a greedy match of Name, then peal back if Name ends in "-Digits"
-        const greedyRegex = /^(.*)-(\d+)-(.+)$/
-        let match = remainder.match(greedyRegex)
-        
-        if (match) {
-            let potentialName = match[1]
-            let potentialId = match[2]
-            let potentialVer = match[3]
-            
-            // Correction Loop: If Name ends in "-Digits", we likely consumed the real ID.
-            // e.g. "Name-7074" (Name) "1" (ID) "0" (Ver) -> "Name" (Name) "7074" (ID) "1-0" (Ver)
-            // Safety limit 5 to prevent infinite loops
-            for (let i = 0; i < 5; i++) {
-                const suffixMatch = potentialName.match(/-(\d+)$/)
-                if (suffixMatch) {
-                    const suffixDigits = suffixMatch[1]
-                    // Shift right
-                    potentialVer = `${potentialId}-${potentialVer}`
-                    potentialId = suffixDigits
-                    potentialName = potentialName.substring(0, potentialName.length - suffixMatch[0].length)
-                } else {
-                    break
-                }
-            }
-            
-            displayName = potentialName
-            nexusId = potentialId
-            version = potentialVer
 
-            // Normalize numeric-hyphen versions (e.g. 1-0 -> 1.0)
-            if (/^\d+(-\d+)+$/.test(version)) {
-                version = version.replace(/-/g, '.')
-            }
+    // Handle OS Duplicate filenames " (1)" e.g. "ModName-123-1.0-123456 (1)"
+    const duplicateMatch = remainder.match(/(.*)\s\(\d+\)$/)
+    if (duplicateMatch) {
+      remainder = duplicateMatch[1]
+    }
+
+    // Check for timestamp at end (digits preceded by hyphen)
+    // IMPORTANT: Nexus timestamps are usually 10 digits (epoch).
+    // If it's short, it might be a version number like -v1.
+    const tsMatch = remainder.match(/-(\d{9,})$/)
+    if (tsMatch) {
+      remainder = remainder.substring(0, remainder.length - tsMatch[0].length)
+    }
+
+    // Step 2: Parse Name-ID-Version
+    // We start with a greedy match of Name, then peal back if Name ends in "-Digits"
+    const greedyRegex = /^(.*)-(\d+)-(.+)$/
+    let match = remainder.match(greedyRegex)
+
+    if (match) {
+      let potentialName = match[1]
+      let potentialId = match[2]
+      let potentialVer = match[3]
+
+      // Correction Loop
+      for (let i = 0; i < 5; i++) {
+        const suffixMatch = potentialName.match(/-(\d+)$/)
+        if (suffixMatch) {
+          const suffixDigits = suffixMatch[1]
+          // Shift right
+          potentialVer = `${potentialId}-${potentialVer}`
+          potentialId = suffixDigits
+          potentialName = potentialName.substring(0, potentialName.length - suffixMatch[0].length)
+        } else {
+          break
         }
+      }
+
+      displayName = potentialName
+      nexusId = potentialId
+      version = potentialVer
+
+      // Normalize numeric-hyphen versions
+      if (/^\d+(-\d+)+$/.test(version)) {
+        version = version.replace(/-/g, '.')
+      }
     } else {
-        // Fallback for files without timestamp or standard format
-        // Just try to grab Version/ID if possible? 
-        // Current fallback: leave as-is (displayName = filenameNoExt)
+      // Fallback: match without timestamp
+      // Try just Name-ID-Version
+      const greedyRegex = /^(.*)-(\d+)-(.+)$/
+      let match2 = remainder.match(greedyRegex)
+      if (match2) {
+        displayName = match2[1]
+        nexusId = match2[2]
+        version = match2[3]
+      }
     }
 
     // Update list
@@ -483,35 +592,61 @@ export class PluginManager {
 
   async disableAllMods(gameId: string) {
     const manifest = this.readManifest(gameId)
-    // Filter enabled mods (excluding loaders? usually users want to disable mods but keep the loader? 
+    // Filter enabled mods (excluding loaders? usually users want to disable mods but keep the loader?
     // Or just disable everything? "Disable All" usually implies everything.
     // Let's protect the loader if possible? No, usually you want to go vanilla.
-    
+
     // We iterate deeply to ensure sequential disabling (file cleanup)
     for (const mod of manifest.mods) {
-        if (mod.enabled) {
-            await this.disableMod(gameId, mod.id)
-        }
+      if (mod.enabled) {
+        await this.disableMod(gameId, mod.id)
+      }
     }
     return true
   }
 
   async deleteMod(gameId: string, modId: string) {
-      await this.disableMod(gameId, modId)
-      
-      const modStagingPath = path.join(this.stagingDir, gameId, modId)
-      if (fs.existsSync(modStagingPath)) {
-          fs.rmSync(modStagingPath, { recursive: true, force: true })
-      }
+    await this.disableMod(gameId, modId)
 
-      let manifest = this.readManifest(gameId)
-      manifest.mods = manifest.mods.filter(m => m.id !== modId)
-      this.writeManifest(gameId, manifest)
-      return true
+    const modStagingPath = path.join(this.stagingDir, gameId, modId)
+    if (fs.existsSync(modStagingPath)) {
+      fs.rmSync(modStagingPath, { recursive: true, force: true })
+    }
+
+    let manifest = this.readManifest(gameId)
+    manifest.mods = manifest.mods.filter((m) => m.id !== modId)
+    this.writeManifest(gameId, manifest)
+    return true
   }
 
-  getMods(gameId: string) {
+  async getMods(gameId: string) {
     return this.readManifest(gameId).mods
+  }
+
+  async validateGame(gameId: string) {
+    try {
+      const result = await this.runCommand(gameId, 'checkRequirements', this.gamePaths[gameId])
+      if (result && typeof result === 'object' && 'valid' in result) {
+        // Clone to plain object to avoid IPC cloning errors with VM2 proxies
+        // We explicitly map the links array if present to ensure it's a clean array of plain objects
+        const links = Array.isArray(result.links)
+          ? result.links.map((l: any) => ({ text: l.text, url: l.url }))
+          : undefined
+
+        return {
+          valid: result.valid,
+          message: result.message,
+          link: result.link,
+          linkText: result.linkText,
+          links
+        }
+      }
+      // Backward compatibility for boolean return (if we had kept it)
+      if (result === false) return { valid: false, message: 'Requirements not met' }
+      return { valid: true }
+    } catch (e) {
+      return { valid: true }
+    }
   }
 
   // --- Base ---
@@ -526,19 +661,26 @@ export class PluginManager {
     const mainFile = this.pluginFiles.get(pluginId)
     if (!mainFile) throw new Error(`Plugin file not found for ${pluginId}`)
 
+    // Save previous context
+    const previousGamePath = this.activeGamePath
+    const previousGameId = this.activeGameId
+    const previousPluginPath = this.currentPluginPath
+
     this.activeGamePath = gamePath
     this.activeGameId = pluginId
     this.currentPluginPath = mainFile
 
     try {
       if (typeof plugin[command] === 'function') {
-        return await plugin[command](...args)
+        const result = await plugin[command](...args)
+        return result
       }
       return null
     } finally {
-      this.activeGamePath = null
-      this.activeGameId = null
-      this.currentPluginPath = null
+      // Restore previous context
+      this.activeGamePath = previousGamePath
+      this.activeGameId = previousGameId
+      this.currentPluginPath = previousPluginPath
     }
   }
 
@@ -586,6 +728,16 @@ export class PluginManager {
 
   getPlugins() {
     return this.getGamesInternal()
+  }
+
+  getSupportedExtensions(gameId: string): string[] {
+    const plugin = this.plugins.get(gameId)
+    // Access property dynamically as it isn't in strictly typed interface yet
+    const exts = (plugin as any)?.modFileExtensions
+    if (exts && Array.isArray(exts)) {
+      return exts
+    }
+    return ['zip', 'rar', '7z', 'mod']
   }
 
   async installExtension(zipPath: string) {

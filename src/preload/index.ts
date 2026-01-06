@@ -5,21 +5,23 @@ import { electronAPI } from '@electron-toolkit/preload'
 const api = {
   getExtensions: () => ipcRenderer.invoke('get-extensions'),
   manageGame: (id: string) => ipcRenderer.invoke('manage-game', id),
+  unmanageGame: (id: string) => ipcRenderer.invoke('unmanage-game', id),
   // New: Open file dialog and install
   installMod: (gameId: string) => ipcRenderer.invoke('install-mod-dialog', gameId),
   toggleMod: (gameId: string, modId: string, enabled: boolean) =>
     ipcRenderer.invoke('toggle-mod', gameId, modId, enabled),
-  deleteMod: (gameId: string, modId: string) => 
-    ipcRenderer.invoke('delete-mod', gameId, modId),
+  deleteMod: (gameId: string, modId: string) => ipcRenderer.invoke('delete-mod', gameId, modId),
   disableAllMods: (gameId: string) => ipcRenderer.invoke('disable-all-mods', gameId),
   getMods: (gameId: string) => ipcRenderer.invoke('get-mods', gameId),
+  validateGame: (gameId: string) => ipcRenderer.invoke('validate-game', gameId),
 
   // New: Toggle command
   toggleLoader: (gameId: string, enable: boolean) =>
     ipcRenderer.invoke('run-extension-command', gameId, 'toggleLoader', enable),
 
   installExtension: () => ipcRenderer.invoke('install-extension-dialog'),
-  exportExtension: (gameId: string) => ipcRenderer.invoke('export-extension', gameId)
+  exportExtension: (gameId: string) => ipcRenderer.invoke('export-extension', gameId),
+  openUrl: (url: string) => ipcRenderer.invoke('open-url', url)
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

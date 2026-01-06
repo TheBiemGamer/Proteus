@@ -67,11 +67,14 @@ app.whenReady().then(() => {
   ipcMain.handle('manage-game', async (_, gameId) => {
     return await pluginManager.manageGame(gameId)
   })
-
-  ipcMain.handle('install-mod-dialog', async (event, gameId) => {
+  ipcMain.handle('unmanage-game', async (_, gameId) => {
+    return await pluginManager.unmanageGame(gameId)
+  })
+  ipcMain.handle('install-mod-dialog', async (_, gameId) => {
+    const extensions = pluginManager.getSupportedExtensions(gameId)
     const { canceled, filePaths } = await dialog.showOpenDialog({
       properties: ['openFile'],
-      filters: [{ name: 'Mods', extensions: ['zip', 'rar', '7z', 'mod'] }]
+      filters: [{ name: 'Mods', extensions }]
     })
 
     if (canceled || filePaths.length === 0) return false
@@ -85,11 +88,19 @@ app.whenReady().then(() => {
     }
   })
 
-  ipcMain.handle('get-mods', (event, gameId) => {
-    return pluginManager.getMods(gameId)
+  ipcMain.handle('get-mods', async (_, gameId) => {
+    return await pluginManager.getMods(gameId)
   })
 
-  ipcMain.handle('toggle-mod', async (event, gameId, modId, enabled) => {
+  ipcMain.handle('validate-game', async (_, gameId) => {
+    return await pluginManager.validateGame(gameId)
+  })
+
+  ipcMain.handle('open-url', async (_, url) => {
+    await shell.openExternal(url)
+  })
+
+  ipcMain.handle('toggle-mod', async (_, gameId, modId, enabled) => {
     try {
       if (enabled) {
         return await pluginManager.enableMod(gameId, modId)
@@ -103,24 +114,24 @@ app.whenReady().then(() => {
   })
 
   ipcMain.handle('delete-mod', async (_, gameId, modId) => {
-      try {
-          return await pluginManager.deleteMod(gameId, modId)
-      } catch (e) {
-          console.error(e)
-          return false
-      }
+    try {
+      return await pluginManager.deleteMod(gameId, modId)
+    } catch (e) {
+      console.error(e)
+      return false
+    }
   })
 
   ipcMain.handle('disable-all-mods', async (_, gameId) => {
     try {
-        return await pluginManager.disableAllMods(gameId)
+      return await pluginManager.disableAllMods(gameId)
     } catch (e) {
-        console.error(e)
-        return false
+      console.error(e)
+      return false
     }
   })
 
-  ipcMain.handle('install-extension-dialog', async (event) => {
+  ipcMain.handle('install-extension-dialog', async (_) => {
     const { canceled, filePaths } = await dialog.showOpenDialog({
       properties: ['openFile'],
       filters: [{ name: 'Mod Manager Extensions', extensions: ['modmanager', 'zip'] }]
@@ -137,7 +148,7 @@ app.whenReady().then(() => {
     }
   })
 
-  ipcMain.handle('export-extension', async (event, gameId) => {
+  ipcMain.handle('export-extension', async (_, gameId) => {
     try {
       const buffer = await pluginManager.exportExtension(gameId)
       if (!buffer) return false
