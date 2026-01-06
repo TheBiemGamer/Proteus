@@ -8,6 +8,12 @@ const api = {
   unmanageGame: (id: string) => ipcRenderer.invoke('unmanage-game', id),
   // New: Open file dialog and install
   installMod: (gameId: string) => ipcRenderer.invoke('install-mod-dialog', gameId),
+  installModDirect: (gameId: string, filePath: string, options?: any) =>
+    ipcRenderer.invoke('install-mod-direct', gameId, filePath, options),
+
+  analyzeFile: (gameId: string, filePath: string) =>
+    ipcRenderer.invoke('analyze-file', gameId, filePath),
+
   toggleMod: (gameId: string, modId: string, enabled: boolean) =>
     ipcRenderer.invoke('toggle-mod', gameId, modId, enabled),
   deleteMod: (gameId: string, modId: string) => ipcRenderer.invoke('delete-mod', gameId, modId),

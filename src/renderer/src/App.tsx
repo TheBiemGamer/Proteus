@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, DragEvent } from 'react'
 import {
   FolderOpen,
   Download,
@@ -39,6 +39,9 @@ interface Mod {
   version?: string
   nexusId?: string
   sourceUrl?: string
+  author?: string
+  description?: string
+  imageUrl?: string
 }
 
 const getTypeColor = (type: string) => {
@@ -60,6 +63,11 @@ function App() {
   const [showSourcesMenu, setShowSourcesMenu] = useState(false)
   const [appVersion, setAppVersion] = useState<string>('')
   const [toasts, setToasts] = useState<Toast[]>([])
+
+  // UI States
+  const [dragOver, setDragOver] = useState(false)
+  const [installPreview, setInstallPreview] = useState<{ file: string; meta: any } | null>(null)
+  const [detailMod, setDetailMod] = useState<Mod | null>(null)
 
   // Settings
   const [view, setView] = useState<'library' | 'settings'>('library')
@@ -171,6 +179,109 @@ function App() {
     }
   }
 
+  const handleInstallMod = async () => {
+    if (!currentGame) return
+    // New flow: Analyzer -> Preview -> Install
+    const { canceled, filePath } = await (window as any).electron.installMod(currentGame.id)
+    if (!canceled && filePath) {
+      handleAnalyzeAndInstall(filePath)
+    }
+  }
+
+  const handleAnalyzeAndInstall = async (filePath: string) => {
+    if (!currentGame) return
+    addToast('Analyzing file...', 'info')
+
+    try {
+      const result = await (window as any).electron.analyzeFile(currentGame.id, filePath)
+
+      if (result.type === 'modpack') {
+        setPreviewModpack({ ...result.meta, filePath })
+      } else {
+        // Mod
+        setInstallPreview({ file: filePath, meta: result.meta })
+      }
+    } catch (e: any) {
+      addToast('Failed to analyze file', 'error')
+    }
+  }
+
+  const confirmModInstall = async () => {
+    if (!currentGame || !installPreview) return
+    setIsManaging(true)
+    try {
+      // Pass metadata from preview so we don't refetch
+      const options = {
+        author: installPreview.meta.author,
+        description: installPreview.meta.description,
+        imageUrl: installPreview.meta.imageUrl,
+        version: installPreview.meta.version,
+        nexusId: installPreview.meta.nexusId
+      }
+
+      await (window as any).electron.installModDirect(currentGame.id, installPreview.file, options)
+      addToast(t.modInstalled, 'success')
+      setInstallPreview(null)
+      loadMods(currentGame.id)
+    } catch (e) {
+      console.error(e)
+      addToast('Install failed', 'error')
+    } finally {
+      setIsManaging(false)
+    }
+  }
+
+  const handleToggleDetailMod = async () => {
+    if (!currentGame || !detailMod) return
+    try {
+      await (window as any).electron.toggleMod(currentGame.id, detailMod.id, !detailMod.enabled)
+      setDetailMod((prev) => (prev ? { ...prev, enabled: !prev.enabled } : null))
+      loadMods(currentGame.id)
+      if (!detailMod.enabled) addToast(t.modEnabled, 'success')
+      else addToast(t.modDisabled, 'info')
+    } catch (e) {
+      addToast('Failed to toggle', 'error')
+    }
+  }
+
+  const handleUninstallDetailMod = async () => {
+    if (!currentGame || !detailMod) return
+    if (!confirm(t.confirmDeleteMod.replace('{modname}', detailMod.name))) return
+
+    try {
+      await (window as any).electron.deleteMod(currentGame.id, detailMod.id)
+      setDetailMod(null)
+      loadMods(currentGame.id)
+      addToast(t.modDeleted, 'success')
+    } catch (e) {
+      addToast('Failed to delete', 'error')
+    }
+  }
+
+  const handleDragOver = (e: DragEvent) => {
+    e.preventDefault()
+    if (!dragOver) setDragOver(true)
+  }
+
+  const handleDragLeave = (e: DragEvent) => {
+    e.preventDefault()
+    if (dragOver) setDragOver(false)
+  }
+
+  const handleDrop = async (e: DragEvent) => {
+    e.preventDefault()
+    setDragOver(false)
+
+    if (!currentGame || !currentGame.managed) return
+
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const file = e.dataTransfer.files[0]
+      const path = (file as any).path // Electron exposes path on File object
+
+      handleAnalyzeAndInstall(path)
+    }
+  }
+
   const handleInstallModpackConfirm = async () => {
     if (!previewModpack) return
     setIsManaging(true)
@@ -216,15 +327,6 @@ function App() {
       }
     } finally {
       setIsManaging(false)
-    }
-  }
-
-  const handleInstallMod = async () => {
-    if (!selectedGame) return
-    const changed = await (window as any).electron.installMod(selectedGame)
-    if (changed) {
-      loadMods(selectedGame)
-      addToast(t.modInstalled, 'success')
     }
   }
 
@@ -291,7 +393,32 @@ function App() {
   const currentGame = games.find((g) => g.id === selectedGame)
 
   return (
-    <div className="flex h-screen bg-gray-950 text-gray-100 font-sans selection:bg-purple-500 selection:text-white">
+    <div
+      className="flex h-screen bg-gray-950 text-gray-100 font-sans selection:bg-purple-500 selection:text-white relative"
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {dragOver && (
+        <div className="absolute inset-0 z-50 bg-blue-500/20 backdrop-blur-sm border-4 border-blue-500 border-dashed m-4 rounded-xl flex items-center justify-center pointer-events-none">
+          <div className="bg-gray-900 p-8 rounded-2xl shadow-2xl flex flex-col items-center animate-bounce">
+            <svg
+              className="w-16 h-16 text-blue-400 mb-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+              />
+            </svg>
+            <h3 className="text-2xl font-bold text-white">Drop to Install</h3>
+          </div>
+        </div>
+      )}
       <ToastContainer toasts={toasts} removeToast={removeToast} />
       {/* Sidebar */}
       <div className="w-72 bg-gray-900 border-r border-gray-800 flex flex-col shadow-2xl z-10">
@@ -730,10 +857,11 @@ function App() {
                             className={`w-1.5 h-12 rounded-full transition-colors ${mod.enabled ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.3)]' : 'bg-gray-700'}`}
                           ></div>
 
-                          <div>
-                            <div className="flex items-center space-x-3">
+                          <div className="flex flex-col flex-1 pl-4">
+                            <div className="flex items-center space-x-2">
                               <h3
-                                className={`font-bold text-lg ${mod.enabled ? 'text-white' : 'text-gray-400'}`}
+                                className={`font-bold text-lg ${mod.enabled ? 'text-white' : 'text-gray-400'} cursor-pointer hover:text-blue-400 transition-colors`}
+                                onClick={() => setDetailMod(mod as any)}
                               >
                                 {mod.name}
                               </h3>
@@ -767,21 +895,30 @@ function App() {
                                 </>
                               )}
                               {mod.nexusId && (
-                                <button
-                                  onClick={() => {
-                                    const baseUrl =
-                                      currentGame?.modSources?.find((s) =>
-                                        s.url.includes('nexusmods.com')
-                                      )?.url || 'https://www.nexusmods.com/games'
-                                    ;(window as any).electron.openUrl(
-                                      `${baseUrl}/mods/${mod.nexusId}`
-                                    )
-                                  }}
-                                  className="text-gray-600 hover:text-blue-400 transition-colors"
-                                  title="View on Nexus Mods"
-                                >
-                                  <ExternalLink className="w-4 h-4" />
-                                </button>
+                                <>
+                                  <button
+                                    onClick={() => {
+                                      const baseUrl =
+                                        currentGame?.modSources?.find((s) =>
+                                          s.url.includes('nexusmods.com')
+                                        )?.url || 'https://www.nexusmods.com/games'
+                                      ;(window as any).electron.openUrl(
+                                        `${baseUrl}/mods/${mod.nexusId}`
+                                      )
+                                    }}
+                                    className="text-gray-600 hover:text-blue-400 transition-colors"
+                                    title="View on Nexus Mods"
+                                  >
+                                    <ExternalLink className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleCheckUpdate(mod)}
+                                    className="text-gray-600 hover:text-green-400 transition-colors"
+                                    title="Check for Updates"
+                                  >
+                                    <RefreshCw className="w-4 h-4" />
+                                  </button>
+                                </>
                               )}
                             </div>
 
@@ -791,6 +928,9 @@ function App() {
                               >
                                 {mod.type}
                               </span>
+                              {mod.author && mod.author !== 'Unknown' && (
+                                <span className="text-xs text-gray-500">by {mod.author}</span>
+                              )}
                               {mod.enabled ? (
                                 <span className="text-xs text-emerald-500 font-medium flex items-center">
                                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span>
@@ -1036,6 +1176,181 @@ function App() {
               >
                 {isManaging ? <span>{t.installing}</span> : <span>{t.installPack}</span>}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {installPreview && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="relative">
+              {installPreview.meta.imageUrl ? (
+                <div className="h-40 w-full relative">
+                  <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/40 to-transparent z-10" />
+                  <img
+                    src={installPreview.meta.imageUrl}
+                    alt="Mod Cover"
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute bottom-4 left-6 z-20">
+                    <h2 className="text-3xl font-bold text-white leading-none shadow-black drop-shadow-md">
+                      {installPreview.meta.name || 'Unknown Mod'}
+                    </h2>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-6 pb-2 bg-gradient-to-r from-gray-800 to-gray-900 border-b border-gray-800">
+                  <h2 className="text-2xl font-bold text-white">
+                    {installPreview.meta.name || installPreview.file.split(/[\\/]/).pop()}
+                  </h2>
+                </div>
+              )}
+            </div>
+
+            <div className="p-6 flex-1 overflow-y-auto space-y-4">
+              {installPreview.meta.nexusId && !settings.nexusApiKey && (
+                <div className="bg-yellow-900/20 border border-yellow-700/50 rounded-lg p-3 flex items-center space-x-3 text-yellow-200">
+                  <AlertTriangle className="w-5 h-5 text-yellow-500 flex-shrink-0" />
+                  <div className="text-xs">
+                    <span className="font-bold block text-yellow-400">Missing Nexus API Key</span>
+                    Metadata and cover image could not be fetched. Add your API key in Settings for
+                    full details.
+                  </div>
+                </div>
+              )}
+              <div className="flex flex-wrap gap-2">
+                <span className="px-2 py-1 bg-gray-800 rounded text-xs text-gray-400 border border-gray-700">
+                  v{installPreview.meta.version || '?.?.?'}
+                </span>
+                <span className="px-2 py-1 bg-gray-800 rounded text-xs text-blue-400 border border-gray-700">
+                  {installPreview.meta.author || 'Unknown Author'}
+                </span>
+                {installPreview.meta.nexusId && (
+                  <span className="px-2 py-1 bg-orange-900/50 text-orange-400 rounded text-xs border border-orange-700/50">
+                    NexusMods: {installPreview.meta.nexusId}
+                  </span>
+                )}
+              </div>
+
+              <p className="text-gray-300 whitespace-pre-wrap leading-relaxed">
+                {installPreview.meta.description || 'No description available.'}
+              </p>
+            </div>
+
+            <div className="p-6 border-t border-gray-800 bg-gray-950/50 flex justify-end space-x-3">
+              <button
+                onClick={() => setInstallPreview(null)}
+                className="px-4 py-2 text-gray-400 hover:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmModInstall}
+                disabled={isManaging}
+                className="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold shadow-lg shadow-blue-900/20"
+              >
+                {isManaging ? 'Installing...' : 'Install Mod'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {detailMod && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="relative">
+              {detailMod.imageUrl ? (
+                <div className="h-40 w-full relative group">
+                  <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/40 to-transparent z-10" />
+                  <img
+                    src={detailMod.imageUrl}
+                    alt="Mod Cover"
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      ;(e.target as HTMLImageElement).style.display = 'none'
+                      // Fallback logic could go here if needed
+                    }}
+                  />
+                  <div className="absolute bottom-4 left-6 z-20">
+                    <h2 className="text-3xl font-bold text-white leading-none shadow-black drop-shadow-md">
+                      {detailMod.name}
+                    </h2>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-6 pb-2 bg-gradient-to-r from-gray-800 to-gray-900 border-b border-gray-800">
+                  <h2 className="text-2xl font-bold text-white">{detailMod.name}</h2>
+                </div>
+              )}
+
+              <button
+                className="absolute top-4 right-4 z-30 p-2 bg-black/50 hover:bg-black/70 rounded-full text-white"
+                onClick={() => setDetailMod(null)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6 flex-1 overflow-y-auto space-y-4">
+              <div className="flex flex-wrap gap-2">
+                <span className="px-2 py-1 bg-gray-800 rounded text-xs text-gray-400 border border-gray-700">
+                  v{detailMod.version || '?.?.?'}
+                </span>
+                <span className="px-2 py-1 bg-gray-800 rounded text-xs text-blue-400 border border-gray-700">
+                  {detailMod.author || 'Unknown Author'}
+                </span>
+                <span
+                  className={`px-2 py-1 rounded text-xs border ${detailMod.enabled ? 'bg-emerald-900/20 text-emerald-400 border-emerald-900' : 'bg-red-900/20 text-red-400 border-red-900'}`}
+                >
+                  {detailMod.enabled ? 'Enabled' : 'Disabled'}
+                </span>
+              </div>
+
+              <p className="text-gray-300 whitespace-pre-wrap leading-relaxed">
+                {detailMod.description || 'No description available.'}
+              </p>
+            </div>
+
+            <div className="p-6 border-t border-gray-800 bg-gray-950/50 flex justify-between items-center">
+              <button
+                onClick={handleUninstallDetailMod}
+                className="px-4 py-2 text-rose-400 hover:text-rose-300 hover:bg-rose-900/20 rounded-lg transition-colors"
+              >
+                Uninstall
+              </button>
+              <div className="flex space-x-3">
+                {detailMod.nexusId && (
+                  <button
+                    onClick={() => {
+                      const baseUrl =
+                        currentGame?.modSources?.find((s) => s.url.includes('nexusmods.com'))
+                          ?.url || 'https://www.nexusmods.com/games'
+                      ;(window as any).electron.openUrl(`${baseUrl}/mods/${detailMod.nexusId}`)
+                    }}
+                    className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg font-medium border border-gray-700 flex items-center space-x-2"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    <span>Nexus Mods</span>
+                  </button>
+                )}
+                {detailMod.sourceUrl && (
+                  <button
+                    onClick={() => (window as any).electron.openUrl(detailMod.sourceUrl)}
+                    className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg font-medium border border-gray-700 flex items-center space-x-2"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    <span>Source</span>
+                  </button>
+                )}
+                <button
+                  onClick={handleToggleDetailMod}
+                  className={`px-6 py-2 rounded-lg font-semibold shadow-lg transition-all ${detailMod.enabled ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-900/20'}`}
+                >
+                  {detailMod.enabled ? 'Disable' : 'Enable'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

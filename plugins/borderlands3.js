@@ -157,16 +157,18 @@ module.exports.default = {
 
         // Use renamed filename if provided, otherwise original asset name
         const filename = renameTo || asset.name
+        const author = repo.split('/')[0]
 
         const zipPath = path.join(gamePath, filename)
-        sandbox.console.log(`Downloading ${filename} (v${version})...`)
+        sandbox.console.log(`Downloading ${filename} (v${version}) by ${author}...`)
         await sandbox.manager.downloadFile(url, zipPath)
 
         sandbox.console.log(`Installing ${filename}...`)
         await sandbox.manager.installMod(zipPath, {
           autoEnable: true,
           version: version,
-          sourceUrl: sourceUrl
+          sourceUrl: sourceUrl,
+          author: author
         })
         sandbox.manager.deleteFile(zipPath)
         return true

@@ -49,6 +49,10 @@ app.whenReady().then(() => {
 
   // load plugins
   pluginManager.loadPlugins()
+  // Sync Initial Settings
+  const settings = settingsManager.get()
+  pluginManager.setNexusApiKey(settings.nexusApiKey)
+
   pluginManager.autoDetectGames()
 
   // listen for list extentions
@@ -76,6 +80,10 @@ app.whenReady().then(() => {
   ipcMain.handle('unmanage-game', async (_, gameId) => {
     return await pluginManager.unmanageGame(gameId)
   })
+  ipcMain.handle('analyze-file', async (_, gameId, filePath) => {
+    return await pluginManager.analyzeFile(gameId, filePath)
+  })
+
   ipcMain.handle('install-mod-dialog', async (_, gameId) => {
     const extensions = pluginManager.getSupportedExtensions(gameId)
     const { canceled, filePaths } = await dialog.showOpenDialog({
@@ -83,10 +91,15 @@ app.whenReady().then(() => {
       filters: [{ name: 'Mods', extensions }]
     })
 
-    if (canceled || filePaths.length === 0) return false
+    if (canceled || filePaths.length === 0) return { canceled: true }
 
+    // Logic moved to renderer: Analyzer first, then install
+    return { canceled: false, filePath: filePaths[0] }
+  })
+
+  ipcMain.handle('install-mod-direct', async (_, gameId, filePath, options) => {
     try {
-      await pluginManager.installMod(gameId, filePaths[0])
+      await pluginManager.installMod(gameId, filePath, options)
       return true
     } catch (err) {
       console.error(err)
@@ -112,7 +125,11 @@ app.whenReady().then(() => {
 
   // Settings IPC
   ipcMain.handle('get-settings', () => settingsManager.get())
-  ipcMain.handle('save-settings', (_, settings) => settingsManager.set(settings))
+  ipcMain.handle('save-settings', (_, settings) => {
+    const s = settingsManager.set(settings)
+    pluginManager.setNexusApiKey(s.nexusApiKey)
+    return s
+  })
 
   ipcMain.handle('toggle-mod', async (_, gameId, modId, enabled) => {
     try {

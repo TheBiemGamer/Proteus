@@ -19,6 +19,9 @@ export interface IMod {
   version?: string
   nexusId?: string
   sourceUrl?: string
+  author?: string
+  description?: string
+  imageUrl?: string
 }
 
 export interface IModpackMeta {

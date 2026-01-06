@@ -106,6 +106,12 @@ export class PluginManager {
     }
   }
 
+  private nexusApiKey: string | null = null
+
+  public setNexusApiKey(key: string | undefined) {
+    this.nexusApiKey = key || null
+  }
+
   // --- VM / Sandbox ---
 
   private createSandbox() {
@@ -237,6 +243,7 @@ export class PluginManager {
             autoEnable?: boolean
             version?: string
             sourceUrl?: string
+            author?: string
           }
         ) => {
           if (!this.activeGameId) throw new Error('No active game')
@@ -461,7 +468,15 @@ export class PluginManager {
     zipPath: string,
     optionsOrAutoEnable:
       | boolean
-      | { autoEnable?: boolean; version?: string; sourceUrl?: string; nexusId?: string } = false
+      | {
+          autoEnable?: boolean
+          version?: string
+          sourceUrl?: string
+          nexusId?: string
+          author?: string
+          description?: string
+          imageUrl?: string
+        } = false
   ) {
     const gamePath = this.gamePaths[gameId]
     if (!gamePath) throw new Error('Game path not set')
@@ -571,16 +586,50 @@ export class PluginManager {
         version = match2[3]
       }
     }
+    let author = 'Unknown'
+    let description: string | undefined
+    let imageUrl: string | undefined
+
+    if ((options as any).author) author = (options as any).author
+    if ((options as any).description) description = (options as any).description
+    if ((options as any).imageUrl) imageUrl = (options as any).imageUrl
 
     // Override with manual options if provided
     if (options.version) version = options.version
     if (options.nexusId) nexusId = options.nexusId
+
+    // Try to fetch better metadata from Nexus if available
+    if (nexusId && this.nexusApiKey) {
+      try {
+        const slug = this.getNexusSlug(gameId)
+        const url = `https://api.nexusmods.com/v1/games/${slug}/mods/${nexusId}.json`
+        const headers = {
+          apikey: this.nexusApiKey,
+          'Application-Name': 'ModManager',
+          'Application-Version': '1.0.0'
+        }
+
+        console.log(`Fetching Nexus info for ${slug}/${nexusId}...`)
+        const response = await axios.get(url, { headers })
+        const data = response.data
+        if (data.name) displayName = data.name
+        if (data.version && !options.version) version = data.version // Prefer API version if not manually overridden
+        if (data.uploaded_by) author = data.uploaded_by
+        if (data.summary) description = data.summary
+        if (data.picture_url) imageUrl = data.picture_url
+      } catch (e) {
+        console.warn('Failed to fetch Nexus metadata:', (e as any).message)
+      }
+    }
 
     // Update list
     manifest.mods = manifest.mods.filter((m) => m.id !== modId)
     manifest.mods.push({
       id: modId,
       name: displayName,
+      author, // Add author
+      description,
+      imageUrl,
       enabled: false,
       installDate: Date.now(),
       files: [],
@@ -686,33 +735,184 @@ export class PluginManager {
 
     // Check if plugin supports it
     const plugin = this.plugins.get(gameId)
-    if (!plugin || typeof (plugin as any).checkUpdate !== 'function') {
-      return { error: 'Update check not supported by this game' }
-    }
+    // 1. Prioritize Plugin Update Check (e.g. GitHub loaders)
+    if (plugin && typeof (plugin as any).checkUpdate === 'function') {
+      // Invoke
+      // VM2 might have issues with raw objects. Best to pass copies of primitives.
+      const modDTO = {
+        id: mod.id,
+        name: mod.name,
+        version: mod.version,
+        sourceUrl: mod.sourceUrl,
+        nexusId: mod.nexusId
+      }
 
-    // Invoke
-    // VM2 might have issues with raw objects. Best to pass copies of primitives.
-    const modDTO = {
-      id: mod.id,
-      name: mod.name,
-      version: mod.version,
-      sourceUrl: mod.sourceUrl,
-      nexusId: mod.nexusId
-    }
+      const result = await this.runCommand(gameId, 'checkUpdate', modDTO)
 
-    const result = await this.runCommand(gameId, 'checkUpdate', modDTO)
-
-    // Clone to plain object to avoid IPC cloning errors with VM2 proxies
-    if (result && typeof result === 'object') {
-      return {
-        supported: result.supported,
-        error: result.error,
-        updateAvailable: result.updateAvailable,
-        latestVersion: result.latestVersion,
-        downloadUrl: result.downloadUrl
+      // Only return if it explicitly supported the check, otherwise fall through to Nexus
+      if (result && result.supported !== false) {
+        // Clone to plain object to avoid IPC cloning errors with VM2 proxies
+        if (result && typeof result === 'object') {
+          return {
+            supported: result.supported,
+            error: result.error,
+            updateAvailable: result.updateAvailable,
+            latestVersion: result.latestVersion,
+            downloadUrl: result.downloadUrl
+          }
+        }
+        return result
       }
     }
-    return result
+
+    // 2. Fallback to Nexus API
+    if (mod.nexusId && this.nexusApiKey) {
+      return await this.checkNexusUpdate(gameId, mod.nexusId, mod.version)
+    }
+
+    return { error: 'Update check not supported by this game or mod' }
+  }
+
+  private getNexusSlug(gameId: string): string {
+    const plugin = this.plugins.get(gameId)
+    // Try to find nexus link
+    const sources = (plugin as any).modSources
+    if (sources && Array.isArray(sources)) {
+      const nexusSrc = sources.find((s) => s.url.includes('nexusmods.com'))
+      if (nexusSrc) {
+        // https://www.nexusmods.com/borderlands3 -> borderlands3
+        const match = nexusSrc.url.match(/nexusmods\.com\/([^/]+)/)
+        if (match) return match[1]
+      }
+    }
+    return gameId // fallback
+  }
+
+  async analyzeFile(gameId: string, filePath: string) {
+    // Check extension
+    const ext = path.extname(filePath).toLowerCase()
+
+    // Check if it's a modpack
+    if (ext === '.modpack' || ext === '.json') {
+      try {
+        const meta = await this.getModpackMetadata(filePath)
+        return { type: 'modpack', meta }
+      } catch {
+        // Fallthrough if parsing failed, might be a random JSON or mod file
+      }
+    }
+
+    // Assume it's a mod archive
+    // Parse metadata
+    const filenameNoExt = path.parse(filePath).name
+    let displayName = filenameNoExt
+    let nexusId: string | undefined
+    let version: string | undefined
+    let author: string | undefined
+    let description: string | undefined
+    let imageUrl: string | undefined
+
+    // 1. Timestamp parsing
+    let remainder = filenameNoExt
+    const duplicateMatch = remainder.match(/(.*)\s\(\d+\)$/)
+    if (duplicateMatch) remainder = duplicateMatch[1]
+
+    const tsMatch = remainder.match(/-(\d{9,})$/)
+    if (tsMatch) remainder = remainder.substring(0, remainder.length - tsMatch[0].length)
+
+    // 2. Name-ID-Version parsing
+    const greedyRegex = /^(.*)-(\d+)-(.+)$/
+    let match = remainder.match(greedyRegex)
+    if (match) {
+      let potentialName = match[1]
+      let potentialId = match[2]
+      let potentialVer = match[3]
+
+      for (let i = 0; i < 5; i++) {
+        const suffixMatch = potentialName.match(/-(\d+)$/)
+        if (suffixMatch) {
+          potentialVer = `${potentialId}-${potentialVer}`
+          potentialId = suffixMatch[1]
+          potentialName = potentialName.substring(0, potentialName.length - suffixMatch[0].length)
+        } else break
+      }
+      displayName = potentialName
+      nexusId = potentialId
+      version = potentialVer
+      if (/^\d+(-\d+)+$/.test(version)) version = version.replace(/-/g, '.')
+    } else {
+      const match2 = remainder.match(/^(.*)-(\d+)-(.+)$/)
+      if (match2) {
+        displayName = match2[1]
+        nexusId = match2[2]
+        version = match2[3]
+      }
+    }
+
+    // 3. Fetch Nexus Info
+    if (nexusId && this.nexusApiKey) {
+      try {
+        const slug = this.getNexusSlug(gameId)
+        const url = `https://api.nexusmods.com/v1/games/${slug}/mods/${nexusId}.json`
+        const headers = {
+          apikey: this.nexusApiKey,
+          'Application-Name': 'ModManager',
+          'Application-Version': '1.0.0'
+        }
+
+        const response = await axios.get(url, { headers })
+        const data = response.data
+        if (data.name) displayName = data.name
+        if (data.version) version = data.version
+        if (data.uploaded_by) author = data.uploaded_by
+        if (data.summary) description = data.summary
+        if (data.picture_url) imageUrl = data.picture_url
+      } catch (e: any) {
+        console.warn('Failed to fetch Nexus metadata during analysis:', e.message)
+      }
+    }
+
+    return {
+      type: 'mod',
+      meta: {
+        name: displayName,
+        version,
+        nexusId,
+        author,
+        description,
+        imageUrl,
+        path: filePath
+      }
+    }
+  }
+
+  async checkNexusUpdate(gameId: string, nexusId: string, currentVersion?: string) {
+    if (!this.nexusApiKey) return { error: 'Nexus API Key not set in Settings' }
+
+    try {
+      const slug = this.getNexusSlug(gameId)
+      const url = `https://api.nexusmods.com/v1/games/${slug}/mods/${nexusId}.json`
+      const headers = {
+        apikey: this.nexusApiKey,
+        'Application-Name': 'ModManager',
+        'Application-Version': '1.0.0'
+      }
+
+      const response = await axios.get(url, { headers })
+      const data = response.data
+
+      const latestVersion = data.version
+      const updateAvailable = latestVersion !== currentVersion
+
+      return {
+        supported: true,
+        updateAvailable,
+        latestVersion,
+        downloadUrl: `https://www.nexusmods.com/${slug}/mods/${nexusId}?tab=files`
+      }
+    } catch (e: any) {
+      return { error: e.response?.data?.message || e.message }
+    }
   }
 
   async validateGame(gameId: string) {
