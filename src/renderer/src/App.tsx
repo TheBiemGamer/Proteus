@@ -13,7 +13,9 @@ import {
   Box,
   Settings,
   RefreshCw,
-  Wrench
+  Wrench,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react'
 import './assets/main.css'
 import { translations } from './utils/i18n'
@@ -72,6 +74,7 @@ function App() {
   const [showSourcesMenu, setShowSourcesMenu] = useState(false)
   const [appVersion, setAppVersion] = useState<string>('')
   const [toasts, setToasts] = useState<Toast[]>([])
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
 
   // Proteus Theme Logic
   useEffect(() => {
@@ -479,20 +482,31 @@ function App() {
       )}
       <ToastContainer toasts={toasts} removeToast={removeToast} />
       {/* Floating Dock */}
-      <aside className="w-20 lg:w-72 glass-dock rounded-2xl flex flex-col god-transition z-10">
-        <div className="p-6">
-          <h1
-            className="hidden lg:block text-2xl font-black bg-gradient-to-r from-[rgb(var(--theme-accent))] to-white bg-clip-text text-transparent tracking-tighter cursor-pointer god-transition hover:opacity-80"
-            onClick={() => setView('library')}
-          >
-            PROTEUS
-          </h1>
-          <p className="hidden lg:block text-xs text-[rgb(var(--theme-text-muted))] mt-1 uppercase tracking-widest font-semibold">
-            {t.library}
-          </p>
-          <div className="lg:hidden flex justify-center">
-            <span className="text-xl font-black text-[rgb(var(--theme-accent))]">P</span>
+      <aside className={`${isSidebarCollapsed ? 'w-20' : 'w-20 lg:w-72'} glass-dock rounded-2xl flex flex-col god-transition z-10`}>
+        <div className={`p-6 flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-between'}`}>
+          <div className={`${isSidebarCollapsed ? 'hidden' : 'hidden lg:block'}`}>
+            <h1
+              className="text-2xl font-black bg-gradient-to-r from-[rgb(var(--theme-accent))] to-white bg-clip-text text-transparent tracking-tighter cursor-pointer god-transition hover:opacity-80"
+              onClick={() => setView('library')}
+            >
+              PROTEUS
+            </h1>
+            <p className="text-xs text-[rgb(var(--theme-text-muted))] mt-1 uppercase tracking-widest font-semibold">
+              {t.library}
+            </p>
           </div>
+          
+          <button
+            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            className={`rounded-xl hover:bg-white/5 text-[rgb(var(--theme-text-muted))] hover:text-white transition-colors outline-none ${isSidebarCollapsed ? 'p-1' : 'p-2'}`}
+            title={isSidebarCollapsed ? 'Expand' : 'Collapse'}
+          >
+            {isSidebarCollapsed ? (
+               <ChevronRight className="w-6 h-6 text-[rgb(var(--theme-accent))]" />
+            ) : (
+               <ChevronLeft className="w-5 h-5" />
+            )}
+          </button>
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 space-y-2 no-scrollbar">
@@ -510,7 +524,7 @@ function App() {
                     : 'text-[rgb(var(--theme-text-muted))] hover:bg-white/5 hover:text-white'
                 }`}
             >
-              <div className="flex items-center space-x-3 w-full">
+              <div className={`flex items-center gap-3 w-full ${isSidebarCollapsed ? 'justify-center' : ''}`}>
                 <div className="relative shrink-0">
                   {g.iconUrl ? (
                     <img
@@ -532,13 +546,13 @@ function App() {
                     }`}
                   />
                 </div>
-                <span className="hidden lg:block font-medium truncate flex-1">{g.name}</span>
+                <span className={`${isSidebarCollapsed ? 'hidden' : 'hidden lg:block'} font-medium truncate flex-1`}>{g.name}</span>
               </div>
             </button>
           ))}
         </nav>
 
-        <div className="p-4 space-y-2">
+        <div className={`space-y-2 ${isSidebarCollapsed ? 'p-2' : 'p-4'}`}>
           {currentGame && currentGame.managed && view === 'library' && (
             <div className="lg:block mb-4 space-y-2">
               <div className="h-px bg-white/10 my-4 mx-2" />
@@ -550,10 +564,10 @@ function App() {
                       await (window as any).electron.runExtensionCommand(currentGame.id, btn.action)
                     }}
                     title={btn.label}
-                    className="w-full p-3 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/20 hover:border-orange-500/40 rounded-xl text-orange-200 god-transition god-hover flex items-center justify-center lg:justify-start space-x-3 group"
+                    className={`bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/20 hover:border-orange-500/40 rounded-xl text-orange-200 god-transition god-hover flex items-center group ${isSidebarCollapsed ? 'w-10 h-10 mx-auto justify-center p-0' : 'w-full p-3 space-x-3 lg:justify-start'}`}
                   >
                     <Wrench className="w-5 h-5 shrink-0" />
-                    <span className="hidden lg:block text-sm font-medium">{btn.label}</span>
+                    <span className={`${isSidebarCollapsed ? 'hidden' : 'hidden lg:block'} text-sm font-medium`}>{btn.label}</span>
                   </button>
                 ))}
 
@@ -561,18 +575,18 @@ function App() {
                 <button
                   onClick={() => setShowExportModal(true)}
                   title={t.exportModpack}
-                  className="w-full p-3 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 hover:border-purple-500/40 rounded-xl text-purple-200 god-transition god-hover flex items-center justify-center lg:justify-start space-x-3"
+                  className={`bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 hover:border-purple-500/40 rounded-xl text-purple-200 god-transition god-hover flex items-center ${isSidebarCollapsed ? 'w-10 h-10 mx-auto justify-center p-0' : 'w-full p-3 space-x-3 lg:justify-start'}`}
                 >
                   <Archive className="w-5 h-5 shrink-0" />
-                  <span className="hidden lg:block text-sm font-medium">{t.exportModpack}</span>
+                  <span className={`${isSidebarCollapsed ? 'hidden' : 'hidden lg:block'} text-sm font-medium`}>{t.exportModpack}</span>
                 </button>
                 <button
                   onClick={handlePickModpack}
                   title={t.importModpack}
-                  className="w-full p-3 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 hover:border-indigo-500/40 rounded-xl text-indigo-200 god-transition god-hover flex items-center justify-center lg:justify-start space-x-3"
+                  className={`bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 hover:border-indigo-500/40 rounded-xl text-indigo-200 god-transition god-hover flex items-center ${isSidebarCollapsed ? 'w-10 h-10 mx-auto justify-center p-0' : 'w-full p-3 space-x-3 lg:justify-start'}`}
                 >
                   <PackageOpen className="w-5 h-5 shrink-0" />
-                  <span className="hidden lg:block text-sm font-medium">{t.importModpack}</span>
+                  <span className={`${isSidebarCollapsed ? 'hidden' : 'hidden lg:block'} text-sm font-medium`}>{t.importModpack}</span>
                 </button>
               </div>
             </div>
@@ -583,14 +597,14 @@ function App() {
           <button
             onClick={() => setView('settings')}
             title={t.settings}
-            className={`w-full p-3 rounded-xl god-transition god-hover outline-none flex items-center justify-center lg:justify-start space-x-3 ${
+            className={`rounded-xl god-transition god-hover outline-none flex items-center justify-center ${
               view === 'settings'
                 ? 'bg-[rgb(var(--theme-accent))] text-white shadow-lg shadow-[rgb(var(--theme-accent))]/20'
                 : 'text-[rgb(var(--theme-text-muted))] hover:bg-white/5 hover:text-white'
-            }`}
+            } ${isSidebarCollapsed ? 'w-10 h-10 mx-auto p-0' : 'w-full p-3'}`}
           >
             <Settings className="w-5 h-5 shrink-0" />
-            <span className="hidden lg:block text-sm font-medium">{t.settings}</span>
+            <span className={`${isSidebarCollapsed ? 'hidden' : 'hidden lg:block'} text-sm font-medium ml-3`}>{t.settings}</span>
           </button>
         </div>
       </aside>
@@ -604,7 +618,7 @@ function App() {
             <div className="flex space-x-6 border-b border-white/10 mb-8">
               <button
                 onClick={() => setSettingsTab('general')}
-                className={`pb-4 px-2 font-medium transition-colors relative ${
+                className={`pb-4 px-2 font-medium god-transition relative ${
                   settingsTab === 'general'
                     ? 'text-[rgb(var(--theme-accent))]'
                     : 'text-[rgb(var(--theme-text-muted))] hover:text-white'
@@ -612,12 +626,12 @@ function App() {
               >
                 {t.general}
                 {settingsTab === 'general' && (
-                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[rgb(var(--theme-accent))] rounded-t-full shadow-[0_0_10px_rgb(var(--theme-accent))]" />
+                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[rgb(var(--theme-accent))] rounded-t-full shadow-[0_0_10px_rgb(var(--theme-accent))] god-transition animate-in fade-in duration-300" />
                 )}
               </button>
               <button
                 onClick={() => setSettingsTab('extensions')}
-                className={`pb-4 px-2 font-medium transition-colors relative ${
+                className={`pb-4 px-2 font-medium god-transition relative ${
                   settingsTab === 'extensions'
                     ? 'text-[rgb(var(--theme-accent))]'
                     : 'text-[rgb(var(--theme-text-muted))] hover:text-white'
@@ -625,12 +639,12 @@ function App() {
               >
                 {t.extensions}
                 {settingsTab === 'extensions' && (
-                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[rgb(var(--theme-accent))] rounded-t-full shadow-[0_0_10px_rgb(var(--theme-accent))]" />
+                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[rgb(var(--theme-accent))] rounded-t-full shadow-[0_0_10px_rgb(var(--theme-accent))] god-transition animate-in fade-in duration-300" />
                 )}
               </button>
               <button
                 onClick={() => setSettingsTab('about')}
-                className={`pb-4 px-2 font-medium transition-colors relative ${
+                className={`pb-4 px-2 font-medium god-transition relative ${
                   settingsTab === 'about'
                     ? 'text-[rgb(var(--theme-accent))]'
                     : 'text-[rgb(var(--theme-text-muted))] hover:text-white'
@@ -638,16 +652,16 @@ function App() {
               >
                 About
                 {settingsTab === 'about' && (
-                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[rgb(var(--theme-accent))] rounded-t-full shadow-[0_0_10px_rgb(var(--theme-accent))]" />
+                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[rgb(var(--theme-accent))] rounded-t-full shadow-[0_0_10px_rgb(var(--theme-accent))] god-transition animate-in fade-in duration-300" />
                 )}
               </button>
             </div>
 
             {settingsTab === 'general' && (
-              <div className="max-w-2xl space-y-8">
+              <div className="max-w-2xl space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500 god-transition">
                 {/* General Section */}
                 <div className="space-y-4">
-                  <h3 className="text-xl font-semibold text-gray-300 border-b border-gray-800 pb-2">
+                  <h3 className="text-xl font-semibold text-gray-300 border-b border-white/10 pb-2">
                     {t.general}
                   </h3>
 
@@ -658,14 +672,14 @@ function App() {
                       onChange={(e) =>
                         handleSaveSettings({ ...settings, language: e.target.value as any })
                       }
-                      className="bg-gray-800 border border-gray-700 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                      className="glass-input rounded-xl p-2.5 text-white"
                     >
-                      <option value="en">English</option>
-                      <option value="nl">Nederlands</option>
+                      <option value="en" className="bg-gray-900">English</option>
+                      <option value="nl" className="bg-gray-900">Nederlands</option>
                     </select>
                   </div>
 
-                  <div className="flex items-center justify-between p-4 bg-gray-900 rounded-xl border border-gray-800">
+                  <div className="flex items-center justify-between p-4 glass-panel rounded-xl border border-white/5 god-transition hover:border-white/10">
                     <div>
                       <h4 className="font-medium text-white">{t.developerMode}</h4>
                       <p className="text-sm text-gray-500">{t.developerModeDesc}</p>
@@ -674,10 +688,10 @@ function App() {
                       onClick={() =>
                         handleSaveSettings({ ...settings, developerMode: !settings.developerMode })
                       }
-                      className={`w-12 h-6 rounded-full p-1 transition-colors ${settings.developerMode ? 'bg-blue-600' : 'bg-gray-700'}`}
+                      className={`w-12 h-6 rounded-full p-1 god-transition ${settings.developerMode ? 'bg-[rgb(var(--theme-accent))]' : 'bg-white/10'}`}
                     >
                       <div
-                        className={`w-4 h-4 bg-white rounded-full transition-transform ${settings.developerMode ? 'translate-x-6' : 'translate-x-0'}`}
+                        className={`w-4 h-4 bg-white rounded-full god-transition ${settings.developerMode ? 'translate-x-6' : 'translate-x-0'}`}
                       />
                     </button>
                   </div>
@@ -685,7 +699,7 @@ function App() {
 
                 {/* Integrations Section */}
                 <div className="space-y-4">
-                  <h3 className="text-xl font-semibold text-gray-300 border-b border-gray-800 pb-2">
+                  <h3 className="text-xl font-semibold text-gray-300 border-b border-white/10 pb-2">
                     {t.integrations}
                   </h3>
 
@@ -697,7 +711,7 @@ function App() {
                       onChange={(e) =>
                         handleSaveSettings({ ...settings, nexusApiKey: e.target.value })
                       }
-                      className="bg-gray-800 border border-gray-700 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                      className="glass-input rounded-xl p-2.5 text-white"
                       placeholder="API Key..."
                     />
                     <p className="text-xs text-gray-500">{t.nexusApiKeyDesc}</p>
@@ -713,9 +727,9 @@ function App() {
             )}
 
             {settingsTab === 'about' && (
-              <div className="max-w-2xl space-y-6">
-                <div className="bg-gray-900 border border-gray-800 rounded-xl p-8 text-center space-y-4">
-                  <h3 className="text-3xl font-black bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+              <div className="max-w-2xl space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 god-transition">
+                <div className="glass-panel border border-white/10 rounded-2xl p-8 text-center space-y-4">
+                  <h3 className="text-3xl font-black bg-gradient-to-r from-[rgb(var(--theme-accent))] to-purple-500 bg-clip-text text-transparent">
                     Proteus Mod Manager
                   </h3>
                   <p className="text-gray-400">
@@ -739,16 +753,16 @@ function App() {
                   <div className="pt-6">
                     <button
                       onClick={() => (window as any).electron.checkForUpdates()}
-                      className="px-6 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors border border-gray-700"
+                      className="px-6 py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl font-medium god-transition border border-white/5 hover:border-white/10"
                     >
                       Check for Updates
                     </button>
                   </div>
                 </div>
 
-                <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+                <div className="glass-panel border border-white/10 rounded-2xl p-6">
                   <h4 className="font-semibold text-white mb-4">License</h4>
-                  <div className="bg-gray-950/50 rounded-lg p-4 border border-gray-800/50">
+                  <div className="bg-black/20 rounded-xl p-4 border border-white/5 custom-scrollbar">
                     <div className="text-xs text-gray-400 font-mono space-y-2 max-h-48 overflow-y-auto pr-2">
                       <p>MIT License</p>
                       <p>Copyright (c) 2026 TheBiemGamer</p>
@@ -781,7 +795,10 @@ function App() {
             )}
           </div>
         ) : currentGame ? (
-          <>
+          <div
+            key={currentGame.id}
+            className="flex-1 flex flex-col h-full overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500 god-transition"
+          >
             {/* Header / Hero */}
             <header className="relative z-10 px-8 py-8 border-b border-white/5 backdrop-blur-md">
               <div className="flex justify-between items-start">
@@ -796,7 +813,7 @@ function App() {
                     >
                       {currentGame.detected ? t.ready : t.missing}
                     </span>
-                    <span className="text-gray-500 text-xs font-mono">{currentGame.path}</span>
+                    <span className="text-gray-500 text-xs font-mono hidden 2xl:block">{currentGame.path}</span>
                   </div>
                   <h2 className="text-4xl font-bold text-white tracking-tight">
                     {currentGame.name}
@@ -1112,7 +1129,7 @@ function App() {
                             setShowSourcesMenu(!showSourcesMenu)
                           }
                         }}
-                        className="w-full py-4 bg-[#da8e35]/10 hover:bg-[#da8e35]/20 border border-[#da8e35]/30 hover:border-[#da8e35]/50 border-dashed rounded-xl flex items-center justify-center space-x-3 text-[#da8e35] hover:text-[#ffaa46] transition-all group"
+                        className="w-full py-4 bg-[#da8e35]/10 hover:bg-[#da8e35]/20 border border-[#da8e35]/30 hover:border-[#da8e35]/50 border-dashed rounded-xl flex items-center justify-center space-x-3 text-[#da8e35] hover:text-[#ffaa46] god-transition group"
                       >
                         <Download className="w-5 h-5 fill-current" />
                         <span className="font-semibold">
@@ -1122,9 +1139,11 @@ function App() {
                             ? `Get Mods from ${currentGame.modSources[0].text}`
                             : t.getMoreMods}
                         </span>
-                        <ChevronDown
-                          className={`w-4 h-4 transition-transform ${showSourcesMenu ? 'rotate-180' : 'group-hover:translate-x-1'}`}
-                        />
+                        {currentGame.modSources && currentGame.modSources.length > 1 && (
+                          <ChevronDown
+                            className={`w-4 h-4 transition-transform ${showSourcesMenu ? 'rotate-180' : 'group-hover:translate-x-1'}`}
+                          />
+                        )}
                       </button>
 
                       {/* Dropdown Menu */}
@@ -1149,10 +1168,10 @@ function App() {
                 </div>
               )}
             </div>
-          </>
+          </div>
         ) : (
-          <div className="flex flex-col items-center justify-center h-full text-[rgb(var(--theme-text-muted))]">
-            <div className="mb-6 p-8 glass-panel rounded-full shadow-2xl bg-[rgb(var(--theme-accent))]/5 border border-[rgb(var(--theme-accent))]/20">
+          <div className="flex flex-col items-center justify-center h-full text-[rgb(var(--theme-text-muted))] animate-in fade-in zoom-in-95 duration-500 god-transition">
+            <div className="mb-6 p-8 glass-panel rounded-full shadow-2xl bg-[rgb(var(--theme-accent))]/5 border border-[rgb(var(--theme-accent))]/20 god-transition hover:scale-110 hover:shadow-[0_0_30px_rgb(var(--theme-accent))]/20">
               <Gamepad2 className="w-20 h-20 text-[rgb(var(--theme-accent))]" />
             </div>
             <p className="text-2xl font-bold mb-2 text-white">Select a Game</p>
@@ -1164,8 +1183,13 @@ function App() {
       </main>
 
       {showExportModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 w-full max-w-lg shadow-2xl">
+        <div
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 god-transition animate-in fade-in duration-200"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowExportModal(false)
+          }}
+        >
+          <div className="glass-panel border border-white/10 rounded-2xl p-6 w-full max-w-lg shadow-2xl god-transition animate-in zoom-in-95 duration-300">
             <h3 className="text-2xl font-bold text-white mb-6">{t.exportModpack}</h3>
             <div className="space-y-4">
               <div>
@@ -1176,7 +1200,7 @@ function App() {
                   type="text"
                   value={modpackMeta.title}
                   onChange={(e) => setModpackMeta({ ...modpackMeta, title: e.target.value })}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+                  className="w-full glass-input rounded-xl px-4 py-2 text-white"
                   placeholder="My Awesome Modpack"
                 />
               </div>
@@ -1186,7 +1210,7 @@ function App() {
                   type="text"
                   value={modpackMeta.author}
                   onChange={(e) => setModpackMeta({ ...modpackMeta, author: e.target.value })}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+                  className="w-full glass-input rounded-xl px-4 py-2 text-white"
                 />
               </div>
               <div>
@@ -1195,7 +1219,7 @@ function App() {
                   type="text"
                   value={modpackMeta.version}
                   onChange={(e) => setModpackMeta({ ...modpackMeta, version: e.target.value })}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+                  className="w-full glass-input rounded-xl px-4 py-2 text-white"
                   placeholder="1.0.0"
                 />
               </div>
@@ -1206,7 +1230,7 @@ function App() {
                 <textarea
                   value={modpackMeta.description}
                   onChange={(e) => setModpackMeta({ ...modpackMeta, description: e.target.value })}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500 h-24"
+                  className="w-full glass-input rounded-xl px-4 py-2 text-white h-24"
                 />
               </div>
               <div>
@@ -1216,7 +1240,7 @@ function App() {
                     type="text"
                     value={modpackMeta.imagePath}
                     onChange={(e) => setModpackMeta({ ...modpackMeta, imagePath: e.target.value })}
-                    className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-gray-400"
+                    className="flex-1 glass-input rounded-xl px-4 py-2 text-gray-400"
                     placeholder="C:\Path\To\Image.png"
                   />
                 </div>
@@ -1225,13 +1249,13 @@ function App() {
             <div className="flex justify-end space-x-3 mt-8">
               <button
                 onClick={() => setShowExportModal(false)}
-                className="px-4 py-2 text-gray-400 hover:text-white"
+                className="px-4 py-2 text-gray-400 hover:text-white god-transition"
               >
                 {t.cancel}
               </button>
               <button
                 onClick={handleExportModpack}
-                className="px-6 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-semibold"
+                className="px-6 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl shadow-lg shadow-purple-900/20 font-semibold god-transition"
               >
                 {t.export}
               </button>
@@ -1241,12 +1265,17 @@ function App() {
       )}
 
       {previewModpack && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-gray-900 border border-indigo-500/30 rounded-2xl p-0 w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 god-transition animate-in fade-in duration-200"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setPreviewModpack(null)
+          }}
+        >
+          <div className="glass-panel border border-white/10 rounded-2xl p-0 w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] god-transition animate-in zoom-in-95 duration-300">
             {previewModpack.image && (
-              <div className="h-48 w-full bg-gray-800 relative">
+              <div className="h-48 w-full bg-black/40 relative">
                 <img src={previewModpack.image} className="w-full h-full object-cover opacity-60" />
-                <div className="absolute inset-0 bg-gradient-to-t from-gray-900 to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#09090b] to-transparent" />
                 <div className="absolute bottom-4 left-6">
                   <h2 className="text-3xl font-bold text-white shadow-sm">
                     {previewModpack.meta.title}
@@ -1265,7 +1294,7 @@ function App() {
               </div>
             )}
             {!previewModpack.image && (
-              <div className="p-8 border-b border-gray-800">
+              <div className="p-8 border-b border-white/10">
                 <h2 className="text-3xl font-bold text-white">{previewModpack.meta.title}</h2>
                 <div className="flex items-center space-x-2 text-indigo-300 mt-3">
                   <span className="font-semibold px-2 py-0.5 rounded bg-indigo-900/50 border border-indigo-500/30 text-indigo-200 text-xs uppercase tracking-wider">
@@ -1288,11 +1317,11 @@ function App() {
               <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">
                 {t.modsIncluded} ({previewModpack.mods.length})
               </h4>
-              <div className="bg-gray-950/50 rounded-lg p-2 max-h-40 overflow-y-auto border border-gray-800">
+              <div className="bg-black/20 rounded-xl p-2 max-h-40 overflow-y-auto border border-white/10 custom-scrollbar">
                 {previewModpack.mods.map((m: any) => (
                   <div
                     key={m.id}
-                    className="flex justify-between items-center p-2 text-sm border-b border-gray-800/50 last:border-0 hover:bg-white/5 rounded"
+                    className="flex justify-between items-center p-2 text-sm border-b border-white/5 last:border-0 hover:bg-white/5 rounded god-transition"
                   >
                     <span className="text-gray-300">{m.name}</span>
                     <span className="text-gray-600 font-mono text-xs">{m.version}</span>
@@ -1301,16 +1330,16 @@ function App() {
               </div>
             </div>
 
-            <div className="p-6 border-t border-gray-800 flex justify-end space-x-3 bg-gray-900">
+            <div className="p-6 border-t border-white/10 bg-black/20 flex justify-end space-x-3">
               <button
                 onClick={() => setPreviewModpack(null)}
-                className="px-4 py-2 text-gray-400 hover:text-white"
+                className="px-4 py-2 text-gray-400 hover:text-white god-transition"
               >
                 {t.cancel}
               </button>
               <button
                 onClick={handleInstallModpackConfirm}
-                className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-semibold flex items-center space-x-2"
+                className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl shadow-lg shadow-indigo-900/20 font-semibold flex items-center space-x-2 god-transition"
               >
                 {isManaging ? <span>{t.installing}</span> : <span>{t.installPack}</span>}
               </button>
@@ -1320,12 +1349,17 @@ function App() {
       )}
 
       {installPreview && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 god-transition animate-in fade-in duration-200"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setInstallPreview(null)
+          }}
+        >
+          <div className="glass-panel border border-white/10 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] god-transition animate-in zoom-in-95 duration-300">
             <div className="relative">
               {installPreview.meta.imageUrl ? (
                 <div className="h-40 w-full relative">
-                  <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/40 to-transparent z-10" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-900/40 to-transparent z-10" />
                   <img
                     src={installPreview.meta.imageUrl}
                     alt="Mod Cover"
@@ -1338,7 +1372,7 @@ function App() {
                   </div>
                 </div>
               ) : (
-                <div className="p-6 pb-2 bg-gradient-to-r from-gray-800 to-gray-900 border-b border-gray-800">
+                <div className="p-6 pb-2 bg-gradient-to-r from-[rgb(var(--theme-bg-start))] to-[rgb(var(--theme-bg-end))] border-b border-white/10">
                   <h2 className="text-2xl font-bold text-white">
                     {installPreview.meta.name || installPreview.file.split(/[\\/]/).pop()}
                   </h2>
@@ -1358,15 +1392,15 @@ function App() {
                 </div>
               )}
               <div className="flex flex-wrap gap-2">
-                <span className="px-2 py-1 bg-gray-800 rounded text-xs text-gray-400 border border-gray-700">
+                <span className="px-2 py-1 bg-white/5 rounded text-xs text-gray-400 border border-white/10">
                   {/^\d/.test(installPreview.meta.version || '') ? 'v' : ''}
                   {installPreview.meta.version || '?.?.?'}
                 </span>
-                <span className="px-2 py-1 bg-gray-800 rounded text-xs text-blue-400 border border-gray-700">
+                <span className="px-2 py-1 bg-white/5 rounded text-xs text-blue-400 border border-white/10">
                   {installPreview.meta.author || 'Unknown Author'}
                 </span>
                 {installPreview.meta.nexusId && (
-                  <span className="px-2 py-1 bg-orange-900/50 text-orange-400 rounded text-xs border border-orange-700/50">
+                  <span className="px-2 py-1 bg-orange-900/40 text-orange-400 rounded text-xs border border-orange-700/40">
                     NexusMods: {installPreview.meta.nexusId}
                   </span>
                 )}
@@ -1377,17 +1411,17 @@ function App() {
               </p>
             </div>
 
-            <div className="p-6 border-t border-gray-800 bg-gray-950/50 flex justify-end space-x-3">
+            <div className="p-6 border-t border-white/10 bg-black/20 flex justify-end space-x-3">
               <button
                 onClick={() => setInstallPreview(null)}
-                className="px-4 py-2 text-gray-400 hover:text-white"
+                className="px-4 py-2 text-gray-400 hover:text-white god-transition"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmModInstall}
                 disabled={isManaging}
-                className="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold shadow-lg shadow-blue-900/20"
+                className="px-6 py-2 bg-[rgb(var(--theme-accent))] hover:bg-[rgb(var(--theme-accent))]/80 text-white rounded-xl shadow-lg shadow-[rgb(var(--theme-accent))]/20 font-semibold god-transition"
               >
                 {isManaging ? 'Installing...' : 'Install Mod'}
               </button>
@@ -1397,12 +1431,17 @@ function App() {
       )}
 
       {detailMod && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 god-transition animate-in fade-in duration-200"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setDetailMod(null)
+          }}
+        >
+          <div className="glass-panel border border-white/10 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] god-transition animate-in zoom-in-95 duration-300">
             <div className="relative">
               {detailMod.imageUrl ? (
                 <div className="h-40 w-full relative group">
-                  <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/40 to-transparent z-10" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-900/40 to-transparent z-10" />
                   <img
                     src={detailMod.imageUrl}
                     alt="Mod Cover"
@@ -1419,13 +1458,13 @@ function App() {
                   </div>
                 </div>
               ) : (
-                <div className="p-6 pb-2 bg-gradient-to-r from-gray-800 to-gray-900 border-b border-gray-800">
+                <div className="p-6 pb-2 bg-gradient-to-r from-[rgb(var(--theme-bg-start))] to-[rgb(var(--theme-bg-end))] border-b border-white/10">
                   <h2 className="text-2xl font-bold text-white">{detailMod.name}</h2>
                 </div>
               )}
 
               <button
-                className="absolute top-4 right-4 z-30 p-2 bg-black/50 hover:bg-black/70 rounded-full text-white"
+                className="absolute top-4 right-4 z-30 p-2 bg-black/50 hover:bg-black/70 rounded-full text-white god-transition"
                 onClick={() => setDetailMod(null)}
               >
                 ✕
@@ -1434,10 +1473,10 @@ function App() {
 
             <div className="p-6 flex-1 overflow-y-auto space-y-4">
               <div className="flex flex-wrap gap-2">
-                <span className="px-2 py-1 bg-gray-800 rounded text-xs text-gray-400 border border-gray-700">
+                <span className="px-2 py-1 bg-white/5 rounded text-xs text-gray-400 border border-white/10">
                   v{detailMod.version || '?.?.?'}
                 </span>
-                <span className="px-2 py-1 bg-gray-800 rounded text-xs text-blue-400 border border-gray-700">
+                <span className="px-2 py-1 bg-white/5 rounded text-xs text-blue-400 border border-white/10">
                   {detailMod.author || 'Unknown Author'}
                 </span>
                 <span
@@ -1452,10 +1491,10 @@ function App() {
               </p>
             </div>
 
-            <div className="p-6 border-t border-gray-800 bg-gray-950/50 flex justify-between items-center">
+            <div className="p-6 border-t border-white/10 bg-black/20 flex justify-between items-center">
               <button
                 onClick={handleUninstallDetailMod}
-                className="px-4 py-2 text-rose-400 hover:text-rose-300 hover:bg-rose-900/20 rounded-lg transition-colors"
+                className="px-4 py-2 text-rose-400 hover:text-rose-300 hover:bg-rose-900/20 rounded-xl transition-colors god-transition"
               >
                 Uninstall
               </button>
@@ -1481,7 +1520,7 @@ function App() {
 
                       ;(window as any).electron.openUrl(targetUrl)
                     }}
-                    className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg font-medium border border-gray-700 flex items-center space-x-2"
+                    className="px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-200 rounded-xl font-medium border border-white/5 flex items-center space-x-2 god-transition"
                   >
                     <ExternalLink className="w-4 h-4" />
                     <span>Nexus Mods</span>
@@ -1490,7 +1529,7 @@ function App() {
                 {detailMod.sourceUrl && !detailMod.sourceUrl.includes('nexusmods.com') && (
                   <button
                     onClick={() => (window as any).electron.openUrl(detailMod.sourceUrl)}
-                    className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg font-medium border border-gray-700 flex items-center space-x-2"
+                    className="px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-200 rounded-xl font-medium border border-white/5 flex items-center space-x-2 god-transition"
                   >
                     <ExternalLink className="w-4 h-4" />
                     <span>Source</span>
@@ -1498,7 +1537,7 @@ function App() {
                 )}
                 <button
                   onClick={handleToggleDetailMod}
-                  className={`px-6 py-2 rounded-lg font-semibold shadow-lg transition-all ${detailMod.enabled ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-900/20'}`}
+                  className={`px-6 py-2 rounded-xl font-semibold shadow-lg god-transition ${detailMod.enabled ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-900/20'}`}
                 >
                   {detailMod.enabled ? 'Disable' : 'Enable'}
                 </button>

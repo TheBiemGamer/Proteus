@@ -64,11 +64,13 @@ body {
 }
 
 .glass-button {
-  @apply bg-white/5 hover:bg-[rgba(var(--theme-accent),0.2)] border border-white/5 hover:border-[rgba(var(--theme-accent),0.5)] transition-all duration-300 backdrop-blur-md;
+  @apply bg-white/5 hover:bg-[rgba(var(--theme-accent),0.2)] border border-white/5 hover:border-[rgba(var(--theme-accent),0.5)] backdrop-blur-md;
+  transition: all 0.3s var(--ease-god);
 }
 
 .glass-input {
-  @apply bg-black/20 border border-white/10 focus:border-[rgb(var(--theme-accent))] focus:bg-black/40 transition-all outline-none backdrop-blur-sm;
+  @apply bg-black/20 border border-white/10 focus:border-[rgb(var(--theme-accent))] focus:bg-black/40 outline-none backdrop-blur-sm;
+  transition: all 0.3s var(--ease-god);
 }
 
 /* Liquid Transitions */
