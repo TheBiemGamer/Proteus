@@ -1,8 +1,9 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 
 // Custom APIs for renderer
 const api = {
+  getPathForFile: (file: File) => webUtils.getPathForFile(file),
   getExtensions: () => ipcRenderer.invoke('get-extensions'),
   manageGame: (id: string) => ipcRenderer.invoke('manage-game', id),
   unmanageGame: (id: string) => ipcRenderer.invoke('unmanage-game', id),

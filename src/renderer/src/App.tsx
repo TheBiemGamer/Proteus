@@ -276,9 +276,19 @@ function App() {
 
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const file = e.dataTransfer.files[0]
-      const path = (file as any).path // Electron exposes path on File object
-
-      handleAnalyzeAndInstall(path)
+      // Use webUtils via preload if available, else fallback
+      let path = (file as any).path
+      if ((window as any).electron.getPathForFile) {
+        try {
+          path = (window as any).electron.getPathForFile(file)
+        } catch (err) {
+            console.warn("Failed to get path via webUtils", err)
+        }
+      }
+      
+      if (path) {
+        handleAnalyzeAndInstall(path)
+      }
     }
   }
 
