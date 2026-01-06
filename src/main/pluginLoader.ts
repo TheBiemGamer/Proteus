@@ -1492,10 +1492,10 @@ export class PluginManager {
         if (modMeta.nexusId) {
           const data = await this._fetchNexusMetadata(gameId, modMeta.nexusId)
           if (data) {
-             if (data.uploaded_by) author = data.uploaded_by
-             if (data.summary) description = data.summary
-             if (data.picture_url) imageUrl = data.picture_url
-             if (data.version && !version) version = data.version
+            if (data.uploaded_by) author = data.uploaded_by
+            if (data.summary) description = data.summary
+            if (data.picture_url) imageUrl = data.picture_url
+            if (data.version && !version) version = data.version
           }
         }
 
@@ -1518,13 +1518,13 @@ export class PluginManager {
           gameManifest.mods.push(existing)
           this.writeManifest(gameId, gameManifest)
         } else {
-             // Update existing metadata if we have better info now
-             if (modMeta.nexusId && !existing.nexusId) existing.nexusId = modMeta.nexusId
-             if (author && !existing.author) existing.author = author
-             if (description && !existing.description) existing.description = description
-             if (imageUrl && !existing.imageUrl) existing.imageUrl = imageUrl
-             if (type !== 'mod' && existing.type === 'mod') existing.type = type
-             this.writeManifest(gameId, gameManifest)
+          // Update existing metadata if we have better info now
+          if (modMeta.nexusId && !existing.nexusId) existing.nexusId = modMeta.nexusId
+          if (author && !existing.author) existing.author = author
+          if (description && !existing.description) existing.description = description
+          if (imageUrl && !existing.imageUrl) existing.imageUrl = imageUrl
+          if (type !== 'mod' && existing.type === 'mod') existing.type = type
+          this.writeManifest(gameId, gameManifest)
         }
 
         // Enable it
