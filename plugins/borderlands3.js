@@ -182,6 +182,38 @@ module.exports.default = {
     return true
   },
 
+  checkUpdate: async (mod) => {
+    if (!mod.sourceUrl || !mod.sourceUrl.includes('github.com')) {
+      return { supported: false }
+    }
+
+    try {
+      // Extract user/repo from https://github.com/user/repo
+      const match = mod.sourceUrl.match(/github\.com\/([^/]+)\/([^/]+)/)
+      if (!match) return { supported: false, error: 'Invalid GitHub URL' }
+
+      const repo = `${match[1]}/${match[2]}`
+      const data = await sandbox.manager.fetch(
+        `https://api.github.com/repos/${repo}/releases/latest`
+      )
+
+      let latest = data.tag_name
+      if (latest.startsWith('v')) latest = latest.substring(1)
+
+      if (latest !== mod.version) {
+        return {
+          updateAvailable: true,
+          latestVersion: latest,
+          downloadUrl: data.assets[0]?.browser_download_url
+        }
+      }
+
+      return { updateAvailable: false, latestVersion: latest }
+    } catch (e) {
+      return { error: e.message }
+    }
+  },
+
   install: async (sourcePath, gamePath, originalZipPath) => {
     const path = require('path')
 

@@ -679,6 +679,42 @@ export class PluginManager {
     return this.readManifest(gameId).mods
   }
 
+  async checkModUpdate(gameId: string, modId: string) {
+    const manifest = this.readManifest(gameId)
+    const mod = manifest.mods.find((m) => m.id === modId)
+    if (!mod) return { error: 'Mod not found' }
+
+    // Check if plugin supports it
+    const plugin = this.plugins.get(gameId)
+    if (!plugin || typeof (plugin as any).checkUpdate !== 'function') {
+      return { error: 'Update check not supported by this game' }
+    }
+
+    // Invoke
+    // VM2 might have issues with raw objects. Best to pass copies of primitives.
+    const modDTO = {
+      id: mod.id,
+      name: mod.name,
+      version: mod.version,
+      sourceUrl: mod.sourceUrl,
+      nexusId: mod.nexusId
+    }
+
+    const result = await this.runCommand(gameId, 'checkUpdate', modDTO)
+
+    // Clone to plain object to avoid IPC cloning errors with VM2 proxies
+    if (result && typeof result === 'object') {
+      return {
+        supported: result.supported,
+        error: result.error,
+        updateAvailable: result.updateAvailable,
+        latestVersion: result.latestVersion,
+        downloadUrl: result.downloadUrl
+      }
+    }
+    return result
+  }
+
   async validateGame(gameId: string) {
     try {
       const result = await this.runCommand(gameId, 'checkRequirements', this.gamePaths[gameId])

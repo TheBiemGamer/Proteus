@@ -1,5 +1,4 @@
 import { X, CheckCircle, AlertTriangle, Info } from 'lucide-react'
-import { useEffect, useState } from 'react'
 
 export interface Toast {
   id: number

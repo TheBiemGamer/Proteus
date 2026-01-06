@@ -75,7 +75,12 @@ export const translations = {
     modpackInstallFailed: 'Modpack install failed',
 
     gameManaged: 'Game setup complete!',
-    gameUnmanaged: 'Game unmanaged'
+    gameUnmanaged: 'Game unmanaged',
+
+    checkingUpdates: 'Checking for updates...',
+    updateAvailable: 'Update available',
+    upToDate: 'Mod is up to date',
+    updateNotSupported: 'Update check not supported'
   },
   nl: {
     library: 'Bibliotheek',
@@ -152,6 +157,11 @@ export const translations = {
     modpackInstallFailed: 'Modpack installatie mislukt',
 
     gameManaged: 'Spel setup voltooid!',
-    gameUnmanaged: 'Spel beheer gestopt'
+    gameUnmanaged: 'Spel niet meer beheerd',
+
+    checkingUpdates: 'Controleren op updates...',
+    updateAvailable: 'Update beschikbaar',
+    upToDate: 'Mod is up-to-date',
+    updateNotSupported: 'Update controle niet ondersteund'
   }
 }

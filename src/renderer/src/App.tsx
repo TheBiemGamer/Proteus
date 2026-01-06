@@ -11,7 +11,8 @@ import {
   Archive,
   Gamepad2,
   Box,
-  Settings
+  Settings,
+  RefreshCw
 } from 'lucide-react'
 import './assets/main.css'
 import { translations } from './utils/i18n'
@@ -37,6 +38,7 @@ interface Mod {
   type: string
   version?: string
   nexusId?: string
+  sourceUrl?: string
 }
 
 const getTypeColor = (type: string) => {
@@ -223,6 +225,27 @@ function App() {
     if (changed) {
       loadMods(selectedGame)
       addToast(t.modInstalled, 'success')
+    }
+  }
+
+  const handleCheckUpdate = async (mod: Mod) => {
+    if (!currentGame) return
+    addToast(t.checkingUpdates || 'Checking for updates...', 'info')
+
+    try {
+      const result = await (window as any).electron.checkModUpdate(currentGame.id, mod.id)
+
+      if (result.error) {
+        addToast(result.error, 'error')
+      } else if (result.updateAvailable) {
+        addToast(`${t.updateAvailable || 'Update available'}: v${result.latestVersion}`, 'success')
+      } else if (result.supported === false) {
+        // addToast(t.updateNotSupported || 'Update check not supported', 'info')
+      } else {
+        addToast(t.upToDate || 'Mod is up to date', 'success')
+      }
+    } catch (e: any) {
+      addToast(e.message || 'Update check failed', 'error')
     }
   }
 
@@ -720,17 +743,28 @@ function App() {
                                 </span>
                               )}
                               {mod.sourceUrl && (
-                                <button
-                                  onClick={() => (window as any).electron.openUrl(mod.sourceUrl)}
-                                  className="text-gray-600 hover:text-blue-400 transition-colors"
-                                  title={
-                                    mod.sourceUrl.includes('github.com')
-                                      ? 'View on GitHub'
-                                      : 'View Source'
-                                  }
-                                >
-                                  <ExternalLink className="w-4 h-4" />
-                                </button>
+                                <>
+                                  <button
+                                    onClick={() => (window as any).electron.openUrl(mod.sourceUrl)}
+                                    className="text-gray-600 hover:text-blue-400 transition-colors"
+                                    title={
+                                      mod.sourceUrl.includes('github.com')
+                                        ? 'View on GitHub'
+                                        : 'View Source'
+                                    }
+                                  >
+                                    <ExternalLink className="w-4 h-4" />
+                                  </button>
+                                  {mod.sourceUrl.includes('github.com') && (
+                                    <button
+                                      onClick={() => handleCheckUpdate(mod)}
+                                      className="text-gray-600 hover:text-green-400 transition-colors"
+                                      title="Check for Updates"
+                                    >
+                                      <RefreshCw className="w-4 h-4" />
+                                    </button>
+                                  )}
+                                </>
                               )}
                               {mod.nexusId && (
                                 <button

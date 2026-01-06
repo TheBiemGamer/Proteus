@@ -98,6 +98,10 @@ app.whenReady().then(() => {
     return await pluginManager.getMods(gameId)
   })
 
+  ipcMain.handle('check-mod-update', async (_, gameId, modId) => {
+    return await pluginManager.checkModUpdate(gameId, modId)
+  })
+
   ipcMain.handle('validate-game', async (_, gameId) => {
     return await pluginManager.validateGame(gameId)
   })
