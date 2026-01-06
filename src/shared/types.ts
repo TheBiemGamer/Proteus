@@ -3,6 +3,7 @@ export interface IGameExtension {
   name: string
   executable: string
   steamAppId?: string // Optional Steam App ID
+  modSources?: Array<{ text: string; url: string }>
   detect: (candidates: string[]) => Promise<string | null>
   install: (sourcePath: string, gamePath: string, originalZipPath: string) => Promise<boolean>
   toggleLoader?: (enable: boolean) => Promise<boolean>

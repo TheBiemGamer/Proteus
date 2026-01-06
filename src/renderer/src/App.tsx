@@ -8,7 +8,7 @@ interface Game {
   managed: boolean
   path: string
   steamAppId?: string
-  nexusSlug?: string
+  modSources?: Array<{ text: string; url: string }>
 }
 
 interface Mod {
@@ -36,6 +36,7 @@ function App() {
   const [mods, setMods] = useState<Mod[]>([])
   const [isManaging, setIsManaging] = useState(false)
   const [gameHealth, setGameHealth] = useState<any>({ valid: true })
+  const [showSourcesMenu, setShowSourcesMenu] = useState(false)
 
   useEffect(() => {
     refreshGames()
@@ -523,18 +524,23 @@ function App() {
                                 </span>
                               )}
                               {mod.nexusId && (
-                                <a
-                                  href={`https://www.nexusmods.com/${
-                                    currentGame?.nexusSlug || 'games'
-                                  }/mods/${mod.nexusId}`}
-                                  target="_blank"
-                                  rel="noreferrer"
+                                <button
+                                  onClick={() => {
+                                    const baseUrl =
+                                      currentGame?.modSources?.find((s) =>
+                                        s.url.includes('nexusmods.com')
+                                      )?.url || 'https://www.nexusmods.com/games'
+                                    ;(window as any).electron.openUrl(
+                                      `${baseUrl}/mods/${mod.nexusId}`
+                                    )
+                                  }}
                                   className="text-gray-600 hover:text-blue-400 transition-colors"
+                                  title="View on Nexus Mods"
                                 >
                                   <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                                     <path d="M12 0C5.373 0 0 5.373 0 12c0 6.627 5.373 12 12 12s12-5.373 12-12C24 5.373 18.627 0 12 0zm1 17h-2v-2h2v2zm0-4h-2V7h2v6z" />
                                   </svg>
-                                </a>
+                                </button>
                               )}
                             </div>
 
@@ -598,33 +604,65 @@ function App() {
                     ))
                   )}
 
-                  {currentGame.nexusSlug && (
-                    <button
-                      onClick={() =>
-                        (window as any).electron.openUrl(
-                          `https://www.nexusmods.com/${currentGame.nexusSlug}`
-                        )
-                      }
-                      className="w-full py-4 mt-4 bg-[#da8e35]/10 hover:bg-[#da8e35]/20 border border-[#da8e35]/30 hover:border-[#da8e35]/50 border-dashed rounded-xl flex items-center justify-center space-x-3 text-[#da8e35] hover:text-[#ffaa46] transition-all group"
-                    >
-                      <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
-                        <path d="M12 0C5.373 0 0 5.373 0 12c0 6.627 5.373 12 12 12s12-5.373 12-12C24 5.373 18.627 0 12 0zm1 17h-2v-2h2v2zm0-4h-2V7h2v6z" />
-                      </svg>
-                      <span className="font-semibold">Get more mods on Nexus Mods</span>
-                      <svg
-                        className="w-4 h-4 transform group-hover:translate-x-1 transition-transform"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
+                  {currentGame.modSources && currentGame.modSources.length > 0 && (
+                    <div className="relative mt-4">
+                      <button
+                        onClick={() => {
+                          const sources = currentGame.modSources || []
+                          if (sources.length === 1) {
+                            ;(window as any).electron.openUrl(sources[0].url)
+                          } else {
+                            setShowSourcesMenu(!showSourcesMenu)
+                          }
+                        }}
+                        className="w-full py-4 bg-[#da8e35]/10 hover:bg-[#da8e35]/20 border border-[#da8e35]/30 hover:border-[#da8e35]/50 border-dashed rounded-xl flex items-center justify-center space-x-3 text-[#da8e35] hover:text-[#ffaa46] transition-all group"
                       >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="2"
-                          d="M17 8l4 4m0 0l-4 4m4-4H3"
-                        />
-                      </svg>
-                    </button>
+                        <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                          <path d="M12 0C5.373 0 0 5.373 0 12c0 6.627 5.373 12 12 12s12-5.373 12-12C24 5.373 18.627 0 12 0zm1 17h-2v-2h2v2zm0-4h-2V7h2v6z" />
+                        </svg>
+                        <span className="font-semibold">Get more mods</span>
+                        <svg
+                          className={`w-4 h-4 transition-transform ${showSourcesMenu ? 'rotate-180' : 'group-hover:translate-x-1'}`}
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          {(currentGame.modSources?.length || 0) > 1 ? (
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                              d="M19 9l-7 7-7-7"
+                            />
+                          ) : (
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                              d="M17 8l4 4m0 0l-4 4m4-4H3"
+                            />
+                          )}
+                        </svg>
+                      </button>
+
+                      {/* Dropdown Menu */}
+                      {showSourcesMenu && (
+                        <div className="absolute bottom-full left-0 w-full mb-2 bg-[#1a1c23] border border-gray-700 rounded-xl shadow-2xl overflow-hidden z-20">
+                          {currentGame.modSources?.map((source, idx) => (
+                            <button
+                              key={idx}
+                              onClick={() => (window as any).electron.openUrl(source.url)}
+                              className="w-full text-left px-4 py-3 hover:bg-blue-500/10 hover:text-blue-400 text-gray-300 transition-colors flex items-center space-x-3 border-b border-gray-800 last:border-0"
+                            >
+                              <span className="font-medium">{source.text}</span>
+                              <span className="text-xs text-gray-600 truncate ml-auto max-w-[150px]">
+                                {source.url.replace(/^https?:\/\//, '')}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               )}

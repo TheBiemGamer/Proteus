@@ -1,7 +1,10 @@
 module.exports.default = {
   id: 'borderlands3',
   name: 'Borderlands 3',
-  nexusSlug: 'borderlands3',
+  modSources: [
+    { text: 'Nexus Mods', url: 'https://www.nexusmods.com/borderlands3' },
+    { text: 'BLCM Wiki', url: 'https://github.com/BLCM/bl3mods/wiki' }
+  ],
   steamAppId: '397540',
   executable: 'OakGame/Binaries/Win64/Borderlands3.exe',
   modFileExtensions: ['zip', 'rar', '7z', 'mod', 'bl3hotfix', 'pak', 'mp4'],

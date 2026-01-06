@@ -267,21 +267,46 @@ export class PluginManager {
 
   private getGamesInternal() {
     const result: any[] = []
-    for (const [id, plugin] of this.plugins) {
+    // Convert Map keys to array to avoid any iteration weirdness, though strict strings should be fine.
+    for (const [key, plugin] of Array.from(this.plugins.entries())) {
+      const id = String(key) // Ensure ID is string
       if (this.gamePaths[id]) {
         const manifest = this.readManifest(id)
+        
+        // Safely extract properties from vm2 proxy
+        // Force primitives to avoid proxy leakage
+        const name = String(plugin.name)
+        const steamAppId = plugin.steamAppId ? String(plugin.steamAppId) : undefined
+        
+        let modSources: { text: string; url: string }[] | undefined
+        // Access safely
+        try {
+          const rawSources = (plugin as any).modSources
+          if (Array.isArray(rawSources)) {
+            // Explicitly map and stringify properties
+            modSources = rawSources.map((s: any) => ({ 
+              text: String(s.text), 
+              url: String(s.url) 
+            }))
+          }
+        } catch (e) {
+          // If accessing modSources fails, just ignore it
+          modSources = undefined
+        }
+
         result.push({
           id,
-          name: plugin.name,
+          name,
           detected: true,
           managed: manifest.managed,
           path: this.gamePaths[id],
-          steamAppId: plugin.steamAppId,
-          nexusSlug: plugin.nexusSlug
+          steamAppId,
+          modSources
         })
       }
     }
-    return result
+    // Deep clone via JSON to strip any remaining Proxy wrappers that IPC hates
+    return JSON.parse(JSON.stringify(result))
   }
 
   // Called by UI when user clicks "Manage"
@@ -720,8 +745,10 @@ export class PluginManager {
           const pluginExports = vm.run(code, pluginFile)
           const plugin = pluginExports.default || pluginExports
           if (plugin && plugin.id) {
-            this.plugins.set(plugin.id, plugin)
-            this.pluginFiles.set(plugin.id, pluginFile)
+            // Force ID to be a native string to avoid Map keys being Proxies
+            const safeId = String(plugin.id)
+            this.plugins.set(safeId, plugin)
+            this.pluginFiles.set(safeId, pluginFile)
           }
         } catch (err) {
           console.error(err)
