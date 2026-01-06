@@ -27,11 +27,7 @@ module.exports.default = {
 
     if (!sandbox.manager.fileExists(loaderCheck) && !sandbox.manager.fileExists(loaderCheck2)) {
       sandbox.console.log("Stracker's Loader not found.")
-      await sandbox.manager.showAlert(
-        "Stracker's Loader Required",
-        "Monster Hunter World mods require Stracker's Loader to function correctly.\n\nPlease download and install it from Nexus Mods."
-      )
-      await sandbox.manager.openUrl('https://www.nexusmods.com/monsterhunterworld/mods/1982')
+      // Alert removed by request - reliant on banner only
     } else {
       sandbox.console.log("Stracker's Loader detected.")
     }

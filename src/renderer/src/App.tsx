@@ -18,6 +18,8 @@ import { translations } from './utils/i18n'
 import { ExtensionManager } from './components/ExtensionManager'
 import { IAppSettings } from '../../shared/types'
 
+import { ToastContainer, Toast } from './components/ToastContainer'
+
 interface Game {
   id: string
   name: string
@@ -55,6 +57,7 @@ function App() {
   const [gameHealth, setGameHealth] = useState<any>({ valid: true })
   const [showSourcesMenu, setShowSourcesMenu] = useState(false)
   const [appVersion, setAppVersion] = useState<string>('')
+  const [toasts, setToasts] = useState<Toast[]>([])
 
   // Settings
   const [view, setView] = useState<'library' | 'settings'>('library')
@@ -94,6 +97,18 @@ function App() {
   const loadSettings = async () => {
     const s = await (window as any).electron.getSettings()
     setSettings(s)
+  }
+
+  const addToast = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
+    const id = Date.now()
+    setToasts((prev) => [...prev, { id, message, type }])
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id))
+    }, 3000)
+  }
+
+  const removeToast = (id: number) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id))
   }
 
   const handleSaveSettings = async (newSettings: IAppSettings) => {
@@ -137,7 +152,10 @@ function App() {
     setIsManaging(true)
     const success = await (window as any).electron.createModpack(selectedGame, modpackMeta)
     setIsManaging(false)
-    if (success) setShowExportModal(false)
+    if (success) {
+      setShowExportModal(false)
+      addToast(t.modpackExported, 'success')
+    }
   }
 
   const handlePickModpack = async () => {
@@ -170,9 +188,11 @@ function App() {
       }
 
       setPreviewModpack(null)
+      addToast(t.modpackInstalled, 'success')
     } catch (e: any) {
       console.error(e)
       alert('Install failed: ' + e.message)
+      addToast(t.modpackInstallFailed, 'error')
     } finally {
       setIsManaging(false)
     }
@@ -188,6 +208,9 @@ function App() {
       if (game && game.managed) {
         const list = await (window as any).electron.getMods(selectedGame)
         setMods(list)
+        // Refresh health check immediately after managing
+        await checkHealth(selectedGame)
+        addToast(t.gameManaged, 'success')
       }
     } finally {
       setIsManaging(false)
@@ -197,13 +220,17 @@ function App() {
   const handleInstallMod = async () => {
     if (!selectedGame) return
     const changed = await (window as any).electron.installMod(selectedGame)
-    if (changed) loadMods(selectedGame)
+    if (changed) {
+      loadMods(selectedGame)
+      addToast(t.modInstalled, 'success')
+    }
   }
 
   const handleToggleMod = async (mod: Mod) => {
     if (!selectedGame) return
     await (window as any).electron.toggleMod(selectedGame, mod.id, !mod.enabled)
     loadMods(selectedGame)
+    addToast(!mod.enabled ? t.modEnabled : t.modDisabled, 'info')
   }
 
   const handleDeleteMod = async (mod: Mod) => {
@@ -211,6 +238,7 @@ function App() {
     if (confirm(t.confirmDeleteMod.replace('{modname}', mod.name))) {
       await (window as any).electron.deleteMod(selectedGame, mod.id)
       loadMods(selectedGame)
+      addToast(t.modDeleted, 'success')
     }
   }
 
@@ -219,6 +247,7 @@ function App() {
     if (confirm(t.confirmDisableAll)) {
       await (window as any).electron.disableAllMods(selectedGame)
       loadMods(selectedGame)
+      addToast(t.modsDisabled, 'warning')
     }
   }
 
@@ -240,6 +269,7 @@ function App() {
 
   return (
     <div className="flex h-screen bg-gray-950 text-gray-100 font-sans selection:bg-purple-500 selection:text-white">
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
       {/* Sidebar */}
       <div className="w-72 bg-gray-900 border-r border-gray-800 flex flex-col shadow-2xl z-10">
         <div className="p-6">
@@ -430,7 +460,7 @@ function App() {
 
             {settingsTab === 'extensions' && (
               <div className="max-w-4xl">
-                <ExtensionManager t={t} onChange={refreshGames} />
+                <ExtensionManager t={t} onChange={refreshGames} showToast={addToast} />
               </div>
             )}
 
@@ -688,6 +718,19 @@ function App() {
                                 <span className="text-[10px] font-mono bg-gray-800 text-gray-300 px-1.5 py-0.5 rounded border border-gray-700">
                                   v{mod.version}
                                 </span>
+                              )}
+                              {mod.sourceUrl && (
+                                <button
+                                  onClick={() => (window as any).electron.openUrl(mod.sourceUrl)}
+                                  className="text-gray-600 hover:text-blue-400 transition-colors"
+                                  title={
+                                    mod.sourceUrl.includes('github.com')
+                                      ? 'View on GitHub'
+                                      : 'View Source'
+                                  }
+                                >
+                                  <ExternalLink className="w-4 h-4" />
+                                </button>
                               )}
                               {mod.nexusId && (
                                 <button

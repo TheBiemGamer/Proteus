@@ -192,6 +192,15 @@ export class PluginManager {
           if (!this.isSafePath(filePath)) throw new Error(`Access Denied: ${filePath}`)
           if (fs.existsSync(filePath)) fs.unlinkSync(filePath)
         },
+        fetch: async (url: string) => {
+          try {
+            const response = await axios.get(url)
+            return response.data
+          } catch (e: any) {
+            console.error('Fetch failed', e)
+            throw e
+          }
+        },
         downloadFile: async (url: string, dest: string) => {
           if (!this.isSafePath(dest)) throw new Error(`Access Denied: ${dest}`)
           try {
@@ -222,11 +231,17 @@ export class PluginManager {
             this.writeManifest(this.activeGameId, manifest)
           }
         },
-        installMod: async (zipPath: string, options?: { autoEnable?: boolean }) => {
+        installMod: async (
+          zipPath: string,
+          options?: {
+            autoEnable?: boolean
+            version?: string
+            sourceUrl?: string
+          }
+        ) => {
           if (!this.activeGameId) throw new Error('No active game')
           // Call the main installMod function
-          // We pass the zip path (which should be in a safe temp location or similar)
-          return self.installMod(this.activeGameId, zipPath, options?.autoEnable)
+          return self.installMod(this.activeGameId, zipPath, options)
         },
         openUrl: async (url: string) => {
           await require('electron').shell.openExternal(url)
@@ -441,9 +456,20 @@ export class PluginManager {
     })
   }
 
-  async installMod(gameId: string, zipPath: string, autoEnable = false) {
+  async installMod(
+    gameId: string,
+    zipPath: string,
+    optionsOrAutoEnable:
+      | boolean
+      | { autoEnable?: boolean; version?: string; sourceUrl?: string; nexusId?: string } = false
+  ) {
     const gamePath = this.gamePaths[gameId]
     if (!gamePath) throw new Error('Game path not set')
+
+    const options =
+      typeof optionsOrAutoEnable === 'boolean'
+        ? { autoEnable: optionsOrAutoEnable }
+        : optionsOrAutoEnable
 
     // Use parse to handle any extension
     const modId = path.parse(zipPath).name.replace(/\s+/g, '_')
@@ -546,6 +572,10 @@ export class PluginManager {
       }
     }
 
+    // Override with manual options if provided
+    if (options.version) version = options.version
+    if (options.nexusId) nexusId = options.nexusId
+
     // Update list
     manifest.mods = manifest.mods.filter((m) => m.id !== modId)
     manifest.mods.push({
@@ -556,11 +586,12 @@ export class PluginManager {
       files: [],
       type,
       version,
-      nexusId
+      nexusId,
+      sourceUrl: options.sourceUrl // Add sourceUrl
     })
     this.writeManifest(gameId, manifest)
 
-    if (autoEnable) {
+    if (options.autoEnable) {
       await this.enableMod(gameId, modId)
     }
     return true

@@ -18,6 +18,7 @@ export interface IMod {
   type: 'mod' | 'loader' | string
   version?: string
   nexusId?: string
+  sourceUrl?: string
 }
 
 export interface IModpackMeta {

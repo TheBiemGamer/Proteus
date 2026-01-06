@@ -118,11 +118,11 @@ module.exports.default = {
     }
 
     if (!sdkExists) {
-      if (!ohlExists) message += ' & Python SDK'
-      else message += ' Python SDK'
+      if (!ohlExists) message += ' & OakModManager'
+      else message += ' OakModManager'
 
       links.push({
-        text: 'Download Python SDK',
+        text: 'Download OakModManager',
         url: 'https://github.com/bl-sdk/oak-mod-manager/releases'
       })
     }
@@ -138,24 +138,46 @@ module.exports.default = {
     const path = require('path')
     sandbox.console.log('Preparing Borderlands 3 for modding...')
 
-    const downloadAndInstall = async (url, filename) => {
-      const zipPath = path.join(gamePath, filename)
-      sandbox.console.log(`Downloading ${filename}...`)
-      await sandbox.manager.downloadFile(url, zipPath)
-      sandbox.console.log(`Installing ${filename}...`)
-      await sandbox.manager.installMod(zipPath, { autoEnable: true })
-      sandbox.manager.deleteFile(zipPath)
+    const installFromGithub = async (repo, filePattern, renameTo = null) => {
+      sandbox.console.log(`Checking latest release for ${repo}...`)
+      try {
+        const data = await sandbox.manager.fetch(
+          `https://api.github.com/repos/${repo}/releases/latest`
+        )
+        const asset = data.assets.find((a) => a.name.match(filePattern))
+        if (!asset) throw new Error(`No matching asset found for ${filePattern}`)
+
+        let version = data.tag_name
+        if (version.startsWith('v')) {
+          version = version.substring(1)
+        }
+
+        const url = asset.browser_download_url
+        const sourceUrl = `https://github.com/${repo}`
+
+        // Use renamed filename if provided, otherwise original asset name
+        const filename = renameTo || asset.name
+
+        const zipPath = path.join(gamePath, filename)
+        sandbox.console.log(`Downloading ${filename} (v${version})...`)
+        await sandbox.manager.downloadFile(url, zipPath)
+
+        sandbox.console.log(`Installing ${filename}...`)
+        await sandbox.manager.installMod(zipPath, {
+          autoEnable: true,
+          version: version,
+          sourceUrl: sourceUrl
+        })
+        sandbox.manager.deleteFile(zipPath)
+        return true
+      } catch (e) {
+        sandbox.console.log(`Failed to install ${repo}: ${e.message}`)
+        return false
+      }
     }
 
-    await downloadAndInstall(
-      'https://github.com/apple1417/OpenHotfixLoader/releases/download/v1.6/OpenHotfixLoader.zip',
-      'OpenHotfixLoader.zip'
-    )
-
-    await downloadAndInstall(
-      'https://github.com/bl-sdk/oak-mod-manager/releases/download/v1.10/bl3-sdk.zip',
-      'PythonSDK.zip'
-    )
+    await installFromGithub('apple1417/OpenHotfixLoader', /OpenHotfixLoader\.zip/i)
+    await installFromGithub('bl-sdk/oak-mod-manager', /bl3-sdk\.zip/i, 'OakModManager.zip')
 
     return true
   },

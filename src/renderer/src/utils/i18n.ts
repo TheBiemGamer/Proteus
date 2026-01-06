@@ -58,7 +58,24 @@ export const translations = {
     enable: 'Enable',
     disable: 'Disable',
     delete: 'Delete',
-    selectExtensionsToExport: 'Select Extensions to Export'
+    selectExtensionsToExport: 'Select Extensions to Export',
+
+    modInstalled: 'Mod installed successfully',
+    modEnabled: 'Mod enabled',
+    modDisabled: 'Mod disabled',
+    modDeleted: 'Mod deleted',
+    modsDisabled: 'All mods disabled',
+    extensionEnabled: 'Extension enabled',
+    extensionDisabled: 'Extension disabled',
+    extensionDeleted: 'Extension deleted',
+    extensionsExported: 'Extensions exported',
+    extensionsInstalled: 'Extensions installed',
+    modpackExported: 'Modpack exported',
+    modpackInstalled: 'Modpack installed',
+    modpackInstallFailed: 'Modpack install failed',
+
+    gameManaged: 'Game setup complete!',
+    gameUnmanaged: 'Game unmanaged'
   },
   nl: {
     library: 'Bibliotheek',
@@ -118,6 +135,23 @@ export const translations = {
     enable: 'Inschakelen',
     disable: 'Uitschakelen',
     delete: 'Verwijderen',
-    selectExtensionsToExport: 'Selecteer Extensies om te Exporteren'
+    selectExtensionsToExport: 'Selecteer Extensies om te Exporteren',
+
+    modInstalled: 'Mod succesvol geïnstalleerd',
+    modEnabled: 'Mod ingeschakeld',
+    modDisabled: 'Mod uitgeschakeld',
+    modDeleted: 'Mod verwijderd',
+    modsDisabled: 'Alle mods uitgeschakeld',
+    extensionEnabled: 'Extensie ingeschakeld',
+    extensionDisabled: 'Extensie uitgeschakeld',
+    extensionDeleted: 'Extensie verwijderd',
+    extensionsExported: 'Extensies geëxporteerd',
+    extensionsInstalled: 'Extensies geïnstalleerd',
+    modpackExported: 'Modpack geëxporteerd',
+    modpackInstalled: 'Modpack geïnstalleerd',
+    modpackInstallFailed: 'Modpack installatie mislukt',
+
+    gameManaged: 'Spel setup voltooid!',
+    gameUnmanaged: 'Spel beheer gestopt'
   }
 }

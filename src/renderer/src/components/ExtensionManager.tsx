@@ -9,7 +9,15 @@ interface Extension {
   enabled: boolean
 }
 
-export function ExtensionManager({ t, onChange }: { t: any; onChange?: () => void }) {
+export function ExtensionManager({
+  t,
+  onChange,
+  showToast
+}: {
+  t: any
+  onChange?: () => void
+  showToast: (msg: string, type: any) => void
+}) {
   const [extensions, setExtensions] = useState<Extension[]>([])
   const [selectedExtensions, setSelectedExtensions] = useState<Set<string>>(new Set())
   const [importPreview, setImportPreview] = useState<{ filePath: string; preview: any[] } | null>(
@@ -30,6 +38,7 @@ export function ExtensionManager({ t, onChange }: { t: any; onChange?: () => voi
     await (window as any).electron.toggleExtension(id, enabled)
     loadExtensions()
     onChange?.()
+    showToast(enabled ? t.extensionEnabled : t.extensionDisabled, 'info')
   }
 
   const handleDelete = async (id: string, name: string) => {
@@ -37,6 +46,7 @@ export function ExtensionManager({ t, onChange }: { t: any; onChange?: () => voi
       await (window as any).electron.deleteExtension(id)
       loadExtensions()
       onChange?.()
+      showToast(t.extensionDeleted, 'success')
     }
   }
 
@@ -45,6 +55,7 @@ export function ExtensionManager({ t, onChange }: { t: any; onChange?: () => voi
     const ids = Array.from(selectedExtensions)
     await (window as any).electron.exportExtensions(ids)
     setSelectedExtensions(new Set())
+    showToast(t.extensionsExported, 'success')
   }
 
   const handleInstallClick = async () => {
@@ -65,6 +76,7 @@ export function ExtensionManager({ t, onChange }: { t: any; onChange?: () => voi
     setImportPreview(null)
     loadExtensions()
     onChange?.()
+    showToast(t.extensionsInstalled, 'success')
   }
 
   return (
