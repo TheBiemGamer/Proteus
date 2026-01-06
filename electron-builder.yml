@@ -1,5 +1,5 @@
-appId: com.biem.modmanager
-productName: Mod Manager
+appId: com.biem.proteus
+productName: Proteus Mod Manager
 directories:
   buildResources: build
 files:
@@ -14,7 +14,7 @@ asarUnpack:
 extraResources:
   - plugins/**
 win:
-  executableName: modmanager
+  executableName: proteus-mod-manager
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
@@ -41,5 +41,6 @@ appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
 publish:
-  provider: generic
-  url: https://example.com/auto-updates
+  provider: github
+  owner: TheBiemGamer
+  repo: ModManager

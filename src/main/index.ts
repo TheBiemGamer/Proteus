@@ -1,6 +1,7 @@
 import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import { autoUpdater } from 'electron-updater'
 import icon from '../../resources/icon.png?asset'
 import { PluginManager } from './pluginLoader'
 import { SettingsManager } from './settings'
@@ -45,7 +46,7 @@ function createWindow(): void {
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
   // Set app user model id for windows
-  electronApp.setAppUserModelId('com.biem.modmanager')
+  electronApp.setAppUserModelId('com.biem.proteus')
 
   // load plugins
   pluginManager.loadPlugins()
@@ -293,6 +294,32 @@ app.whenReady().then(() => {
       throw e
     }
   })
+
+  // Auto Updater
+  ipcMain.handle('check-for-updates', () => {
+    if (!is.dev) {
+      return autoUpdater.checkForUpdates()
+    }
+    return null
+  })
+
+  ipcMain.handle('quit-and-install', () => {
+    autoUpdater.quitAndInstall()
+  })
+
+  autoUpdater.on('update-available', () => {
+    const mainWindow = BrowserWindow.getAllWindows()[0]
+    if (mainWindow) mainWindow.webContents.send('update-available')
+  })
+
+  autoUpdater.on('update-downloaded', () => {
+    const mainWindow = BrowserWindow.getAllWindows()[0]
+    if (mainWindow) mainWindow.webContents.send('update-downloaded')
+  })
+
+  if (!is.dev) {
+    autoUpdater.checkForUpdatesAndNotify()
+  }
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.

@@ -1,6 +1,6 @@
-# ModManager AI Coding Instructions
+# Proteus Mod Manager (PMM) AI Coding Instructions
 
-You are working on **ModManager**, a modular, extensible mod manager application built with **Electron**, **React**, and **TypeScript**.
+You are working on **Proteus Mod Manager (PMM)**, a modular, extensible mod manager application built with **Electron**, **React**, and **TypeScript**.
 
 ## Architectural Principles
 

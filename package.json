@@ -1,7 +1,7 @@
 {
-  "name": "modmanager",
+  "name": "proteus-mod-manager",
   "version": "0.2.0",
-  "description": "An Electron application with React and TypeScript",
+  "description": "Proteus Mod Manager - A highly modular mod manager written in React and TypeScript",
   "main": "./out/main/index.js",
   "author": "thebiemgamer",
   "homepage": "https://electron-vite.org",
@@ -33,6 +33,7 @@
     "@electron-toolkit/utils": "^4.0.0",
     "adm-zip": "^0.5.16",
     "axios": "^1.13.2",
+    "electron-updater": "^6.7.3",
     "lucide-react": "^0.562.0",
     "node-7z": "^3.0.0",
     "vm2": "^3.10.0"

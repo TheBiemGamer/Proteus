@@ -55,7 +55,14 @@ const api = {
 
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
 
-  openUrl: (url: string) => ipcRenderer.invoke('open-url', url)
+  openUrl: (url: string) => ipcRenderer.invoke('open-url', url),
+
+  // Auto Updater
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  quitAndInstall: () => ipcRenderer.invoke('quit-and-install'),
+  onUpdateAvailable: (callback: () => void) => ipcRenderer.on('update-available', () => callback()),
+  onUpdateDownloaded: (callback: () => void) =>
+    ipcRenderer.on('update-downloaded', () => callback())
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

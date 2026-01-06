@@ -1,15 +1,15 @@
 <img src="./assets/image.png" alt="drawing" style="width:1200px;"/>
 
-# ModManager
+# Proteus Mod Manager (PMM)
 
 > [!IMPORTANT]
-> Mod Manager is currently in early development, so it's expected to have some bugs.
+> Proteus Mod Manager is currently in early development, so it's expected to have some bugs.
 
 A modern, extensible Mod Manager application built with Electron, React, and TypeScript, supporting custom plugins for various games.
 
 ## Extension/Plugin Development Guide
 
-The ModManager is designed to be agnostic to the specific game it manages. Support for games is added via **Plugins**.
+The Proteus Mod Manager is designed to be agnostic to the specific game it manages. Support for games is added via **Plugins**.
 
 ### Plugin Structure
 

@@ -452,14 +452,14 @@ function App() {
             className="text-2xl font-black bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent tracking-tighter cursor-pointer"
             onClick={() => setView('library')}
           >
-            MOD MANAGER
+            PROTEUS
           </h1>
           <p className="text-xs text-gray-500 mt-1 uppercase tracking-widest font-semibold">
             {t.library}
           </p>
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-3 space-y-1">
+        <nav className="flex-1 overflow-y-auto px-3 space-y-1.5 pt-1">
           {games.map((g) => (
             <button
               key={g.id}
@@ -665,7 +665,7 @@ function App() {
               <div className="max-w-2xl space-y-6">
                 <div className="bg-gray-900 border border-gray-800 rounded-xl p-8 text-center space-y-4">
                   <h3 className="text-3xl font-black bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
-                    ModManager
+                    Proteus Mod Manager
                   </h3>
                   <p className="text-gray-400">
                     A modular, extensible mod manager for various games, built with Electron and
@@ -684,6 +684,14 @@ function App() {
                       <span className="font-semibold text-gray-400">License</span>
                       <p>MIT</p>
                     </div>
+                  </div>
+                  <div className="pt-6">
+                    <button
+                      onClick={() => (window as any).electron.checkForUpdates()}
+                      className="px-6 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors border border-gray-700"
+                    >
+                      Check for Updates
+                    </button>
                   </div>
                 </div>
 
