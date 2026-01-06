@@ -482,8 +482,12 @@ function App() {
       )}
       <ToastContainer toasts={toasts} removeToast={removeToast} />
       {/* Floating Dock */}
-      <aside className={`${isSidebarCollapsed ? 'w-20' : 'w-20 lg:w-72'} glass-dock rounded-2xl flex flex-col god-transition z-10`}>
-        <div className={`p-6 flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-between'}`}>
+      <aside
+        className={`${isSidebarCollapsed ? 'w-20' : 'w-20 lg:w-72'} glass-dock rounded-2xl flex flex-col god-transition z-10`}
+      >
+        <div
+          className={`p-6 flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-between'}`}
+        >
           <div className={`${isSidebarCollapsed ? 'hidden' : 'hidden lg:block'}`}>
             <h1
               className="text-2xl font-black bg-gradient-to-r from-[rgb(var(--theme-accent))] to-white bg-clip-text text-transparent tracking-tighter cursor-pointer god-transition hover:opacity-80"
@@ -495,16 +499,16 @@ function App() {
               {t.library}
             </p>
           </div>
-          
+
           <button
             onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
             className={`rounded-xl hover:bg-white/5 text-[rgb(var(--theme-text-muted))] hover:text-white transition-colors outline-none ${isSidebarCollapsed ? 'p-1' : 'p-2'}`}
             title={isSidebarCollapsed ? 'Expand' : 'Collapse'}
           >
             {isSidebarCollapsed ? (
-               <ChevronRight className="w-6 h-6 text-[rgb(var(--theme-accent))]" />
+              <ChevronRight className="w-6 h-6 text-[rgb(var(--theme-accent))]" />
             ) : (
-               <ChevronLeft className="w-5 h-5" />
+              <ChevronLeft className="w-5 h-5" />
             )}
           </button>
         </div>
@@ -524,7 +528,9 @@ function App() {
                     : 'text-[rgb(var(--theme-text-muted))] hover:bg-white/5 hover:text-white'
                 }`}
             >
-              <div className={`flex items-center gap-3 w-full ${isSidebarCollapsed ? 'justify-center' : ''}`}>
+              <div
+                className={`flex items-center gap-3 w-full ${isSidebarCollapsed ? 'justify-center' : ''}`}
+              >
                 <div className="relative shrink-0">
                   {g.iconUrl ? (
                     <img
@@ -546,7 +552,11 @@ function App() {
                     }`}
                   />
                 </div>
-                <span className={`${isSidebarCollapsed ? 'hidden' : 'hidden lg:block'} font-medium truncate flex-1`}>{g.name}</span>
+                <span
+                  className={`${isSidebarCollapsed ? 'hidden' : 'hidden lg:block'} font-medium truncate flex-1`}
+                >
+                  {g.name}
+                </span>
               </div>
             </button>
           ))}
@@ -567,7 +577,11 @@ function App() {
                     className={`bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/20 hover:border-orange-500/40 rounded-xl text-orange-200 god-transition god-hover flex items-center group ${isSidebarCollapsed ? 'w-10 h-10 mx-auto justify-center p-0' : 'w-full p-3 space-x-3 lg:justify-start'}`}
                   >
                     <Wrench className="w-5 h-5 shrink-0" />
-                    <span className={`${isSidebarCollapsed ? 'hidden' : 'hidden lg:block'} text-sm font-medium`}>{btn.label}</span>
+                    <span
+                      className={`${isSidebarCollapsed ? 'hidden' : 'hidden lg:block'} text-sm font-medium`}
+                    >
+                      {btn.label}
+                    </span>
                   </button>
                 ))}
 
@@ -578,7 +592,11 @@ function App() {
                   className={`bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 hover:border-purple-500/40 rounded-xl text-purple-200 god-transition god-hover flex items-center ${isSidebarCollapsed ? 'w-10 h-10 mx-auto justify-center p-0' : 'w-full p-3 space-x-3 lg:justify-start'}`}
                 >
                   <Archive className="w-5 h-5 shrink-0" />
-                  <span className={`${isSidebarCollapsed ? 'hidden' : 'hidden lg:block'} text-sm font-medium`}>{t.exportModpack}</span>
+                  <span
+                    className={`${isSidebarCollapsed ? 'hidden' : 'hidden lg:block'} text-sm font-medium`}
+                  >
+                    {t.exportModpack}
+                  </span>
                 </button>
                 <button
                   onClick={handlePickModpack}
@@ -586,7 +604,11 @@ function App() {
                   className={`bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 hover:border-indigo-500/40 rounded-xl text-indigo-200 god-transition god-hover flex items-center ${isSidebarCollapsed ? 'w-10 h-10 mx-auto justify-center p-0' : 'w-full p-3 space-x-3 lg:justify-start'}`}
                 >
                   <PackageOpen className="w-5 h-5 shrink-0" />
-                  <span className={`${isSidebarCollapsed ? 'hidden' : 'hidden lg:block'} text-sm font-medium`}>{t.importModpack}</span>
+                  <span
+                    className={`${isSidebarCollapsed ? 'hidden' : 'hidden lg:block'} text-sm font-medium`}
+                  >
+                    {t.importModpack}
+                  </span>
                 </button>
               </div>
             </div>
@@ -604,7 +626,11 @@ function App() {
             } ${isSidebarCollapsed ? 'w-10 h-10 mx-auto p-0' : 'w-full p-3'}`}
           >
             <Settings className="w-5 h-5 shrink-0" />
-            <span className={`${isSidebarCollapsed ? 'hidden' : 'hidden lg:block'} text-sm font-medium ml-3`}>{t.settings}</span>
+            <span
+              className={`${isSidebarCollapsed ? 'hidden' : 'hidden lg:block'} text-sm font-medium ml-3`}
+            >
+              {t.settings}
+            </span>
           </button>
         </div>
       </aside>
@@ -674,8 +700,12 @@ function App() {
                       }
                       className="glass-input rounded-xl p-2.5 text-white"
                     >
-                      <option value="en" className="bg-gray-900">English</option>
-                      <option value="nl" className="bg-gray-900">Nederlands</option>
+                      <option value="en" className="bg-gray-900">
+                        English
+                      </option>
+                      <option value="nl" className="bg-gray-900">
+                        Nederlands
+                      </option>
                     </select>
                   </div>
 
@@ -813,7 +843,9 @@ function App() {
                     >
                       {currentGame.detected ? t.ready : t.missing}
                     </span>
-                    <span className="text-gray-500 text-xs font-mono hidden 2xl:block">{currentGame.path}</span>
+                    <span className="text-gray-500 text-xs font-mono hidden 2xl:block">
+                      {currentGame.path}
+                    </span>
                   </div>
                   <h2 className="text-4xl font-bold text-white tracking-tight">
                     {currentGame.name}

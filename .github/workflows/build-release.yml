@@ -49,15 +49,12 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Delete existing release
-        shell: powershell
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG_NAME: v${{ steps.package-version.outputs.VERSION }}
         run: |
-          # Redirect stderr to stdout to avoid NativeCommandError in PS 5.1
-          gh release delete $env:TAG_NAME --cleanup-tag --yes 2>&1 | Write-Host
-          # Always exit 0, even if the release didn't exist
-          $global:LASTEXITCODE = 0
+          gh release delete "$TAG_NAME" --cleanup-tag --yes || true
 
       - name: Create Release
         uses: softprops/action-gh-release@v1

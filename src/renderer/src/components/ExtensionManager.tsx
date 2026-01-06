@@ -83,11 +83,11 @@ export function ExtensionManager({
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="glass-panel p-6 rounded-2xl border border-white/10 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-           <h3 className="text-2xl font-bold text-white flex items-center gap-3">
+          <h3 className="text-2xl font-bold text-white flex items-center gap-3">
             <Package className="w-6 h-6 text-[rgb(var(--theme-accent))]" />
             {t.extensions}
-           </h3>
-           <p className="text-gray-400 text-sm mt-1">Manage plugins and game support modules.</p>
+          </h3>
+          <p className="text-gray-400 text-sm mt-1">Manage plugins and game support modules.</p>
         </div>
         <div className="flex space-x-3">
           <button
@@ -118,10 +118,10 @@ export function ExtensionManager({
       <div className="glass-panel rounded-2xl border border-white/10 overflow-hidden backdrop-blur-md">
         {extensions.length === 0 ? (
           <div className="p-12 text-center text-gray-500 flex flex-col items-center gap-4">
-             <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center">
-                <Package className="w-8 h-8 text-gray-600" />
-             </div>
-             <p>{t.noExtensions}</p>
+            <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center">
+              <Package className="w-8 h-8 text-gray-600" />
+            </div>
+            <p>{t.noExtensions}</p>
           </div>
         ) : (
           <table className="w-full text-left text-sm">
@@ -172,12 +172,16 @@ export function ExtensionManager({
                         setSelectedExtensions(newSet)
                       }}
                     >
-                      {selectedExtensions.has(ext.id) && <Check className="w-3.5 h-3.5 text-white" />}
+                      {selectedExtensions.has(ext.id) && (
+                        <Check className="w-3.5 h-3.5 text-white" />
+                      )}
                     </div>
                   </td>
                   <td className="p-4 font-medium text-gray-200">{ext.name}</td>
                   <td className="p-4 text-gray-400 text-sm">{ext.author || 'Unknown'}</td>
-                  <td className="p-4 text-gray-500 font-mono text-xs opacity-70">{ext.version || '1.0.0'}</td>
+                  <td className="p-4 text-gray-500 font-mono text-xs opacity-70">
+                    {ext.version || '1.0.0'}
+                  </td>
                   <td className="p-4">
                     <span
                       className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold tracking-wide ${
@@ -186,7 +190,9 @@ export function ExtensionManager({
                           : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
                       }`}
                     >
-                      <span className={`w-1.5 h-1.5 rounded-full mr-2 ${ext.enabled ? 'bg-emerald-400' : 'bg-rose-400'}`}></span>
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full mr-2 ${ext.enabled ? 'bg-emerald-400' : 'bg-rose-400'}`}
+                      ></span>
                       {ext.enabled ? t.enabled : t.disabled}
                     </span>
                   </td>
@@ -225,12 +231,13 @@ export function ExtensionManager({
             <div className="p-6 border-b border-white/10 flex justify-between items-center bg-white/5">
               <div>
                 <h3 className="text-xl font-bold text-white">Select Extensions</h3>
-                <p className="text-gray-400 text-sm mt-0.5">
-                   Choose components to install.
-                </p>
+                <p className="text-gray-400 text-sm mt-0.5">Choose components to install.</p>
               </div>
-              <button onClick={() => setImportPreview(null)} className="text-gray-500 hover:text-white god-transition">
-                 <X className="w-5 h-5" />
+              <button
+                onClick={() => setImportPreview(null)}
+                className="text-gray-500 hover:text-white god-transition"
+              >
+                <X className="w-5 h-5" />
               </button>
             </div>
             <div className="p-4 overflow-y-auto flex-1 custom-scrollbar">
@@ -249,10 +256,16 @@ export function ExtensionManager({
                     <div
                       className={`w-5 h-5 rounded-md border-2 mr-3 flex items-center justify-center god-transition ${importSelection.has(item.path) ? 'bg-[rgb(var(--theme-accent))] border-[rgb(var(--theme-accent))]' : 'border-gray-600 bg-transparent'}`}
                     >
-                      {importSelection.has(item.path) && <Check className="w-3.5 h-3.5 text-white" />}
+                      {importSelection.has(item.path) && (
+                        <Check className="w-3.5 h-3.5 text-white" />
+                      )}
                     </div>
                     <div className="flex-1">
-                      <div className={`font-medium ${importSelection.has(item.path) ? 'text-white' : 'text-gray-300'}`}>{item.name}</div>
+                      <div
+                        className={`font-medium ${importSelection.has(item.path) ? 'text-white' : 'text-gray-300'}`}
+                      >
+                        {item.name}
+                      </div>
                       <div className="text-xs text-gray-500 font-mono mt-0.5">{item.path}</div>
                     </div>
                   </div>

@@ -118,8 +118,8 @@ module.exports.default = {
    * @returns {object|null} - Metadata object (same structure as determineModType return).
    */
   analyzeArchive: (files) => {
-    if (files.some(f => f.endsWith('tool.exe'))) {
-       return { type: 'Tool', name: 'My Tool', nexusId: '999' }
+    if (files.some((f) => f.endsWith('tool.exe'))) {
+      return { type: 'Tool', name: 'My Tool', nexusId: '999' }
     }
     return null
   },
@@ -130,7 +130,7 @@ module.exports.default = {
    * @param {string} gamePath - The Game Root directory.
    */
   onUnmanage: async (gamePath) => {
-     // sandbox.manager.removeDir(path.join(gamePath, 'Mods'))
+    // sandbox.manager.removeDir(path.join(gamePath, 'Mods'))
   },
 
   /**
@@ -209,7 +209,7 @@ pnpm run dev
 npm run build:win
 ```
 
-##  Contributing
+## Contributing
 
 We welcome all forms of contribution, whether it's adding support for new games, improving the UI, or enhancing the core architecture!
 
@@ -224,17 +224,17 @@ If you want to improve the `PluginLoader`, the Electron backend, or the React fr
 > [!CAUTION]
 > **Strict Rule: No Game-Specific Logic in the Core**
 > The `PluginLoader` and the main Application **must remain completely agnostic**.
-> * **Do Not** hardcode checks like `if (game === 'Skyrim')` inside the main process or UI components.
-> * **Do Not** import game-specific assets into the core bundle.
-> 
-> 
+>
+> - **Do Not** hardcode checks like `if (game === 'Skyrim')` inside the main process or UI components.
+> - **Do Not** import game-specific assets into the core bundle.
+>
 > All game-specific logic must reside entirely within the `.js` file of the respective Plugin.
 
 ### Extending Functionality
 
-If you find that a Plugin *cannot* achieve a specific task because the Sandbox API is too limited, **you are encouraged to extend the PluginLoader.**
+If you find that a Plugin _cannot_ achieve a specific task because the Sandbox API is too limited, **you are encouraged to extend the PluginLoader.**
 
 Instead of hardcoding the fix for that specific game, implement a **generic solution** in the `sandbox.manager` API that any plugin could use in the future.
 
-* *Bad:* Adding a function `installCyberpunkMod()` to the core.
-* *Good:* Adding a generic function `patchJsonFile()` to the Sandbox API, which the Cyberpunk plugin can then utilize.
+- _Bad:_ Adding a function `installCyberpunkMod()` to the core.
+- _Good:_ Adding a generic function `patchJsonFile()` to the Sandbox API, which the Cyberpunk plugin can then utilize.
