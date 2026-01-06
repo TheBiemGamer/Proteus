@@ -1,36 +1,36 @@
 module.exports.default = {
-  id: 'borderlands3',
-  name: 'Borderlands 3',
+  id: 'wonderlands',
+  name: "Tiny Tina's Wonderlands",
   version: '1.0.1',
   author: 'TheBiemGamer',
   modSources: [
-    { text: 'Nexus Mods', url: 'https://www.nexusmods.com/borderlands3' },
-    { text: 'BLCM Wiki', url: 'https://github.com/BLCM/bl3mods/wiki' },
+    { text: 'Nexus Mods', url: 'https://www.nexusmods.com/tinytinaswonderlands' },
+    { text: 'BLCM Wiki', url: 'https://github.com/BLCM/wlmods/wiki' },
     { text: 'SDK Mod Database', url: 'https://bl-sdk.github.io/oak-mod-db/' }
   ],
-  steamAppId: '397540',
-  executable: 'OakGame/Binaries/Win64/Borderlands3.exe',
-  modFileExtensions: ['zip', 'rar', '7z', 'mod', 'bl3hotfix', 'pak', 'mp4'],
-  iconUrl: 'https://cdn2.steamgriddb.com/icon/a3fb3740778d53b2d89b66c70066151b/32/256x256.png',
+  steamAppId: '1286680',
+  executable: 'OakGame/Binaries/Win64/Wonderlands.exe',
+  modFileExtensions: ['zip', 'rar', '7z', 'mod', 'wlhotfix', 'pak', 'mp4'],
+  iconUrl: 'https://cdn2.steamgriddb.com/icon_thumb/c0b3cb0842f9f8148f618c587b48d5ba.png',
   theme: {
-    accent: '249, 115, 22', // Orange
-    bgStart: '25, 15, 5'
+    accent: '168, 85, 247', // Purple
+    bgStart: '20, 10, 30'
   },
 
   detect: async (candidates) => {
     const path = require('path')
     for (const folder of candidates) {
-      // Common Steam path: steamapps/common/Borderlands 3
+      // Common Steam path: steamapps/common/Tiny Tina's Wonderlands
       const check = path.join(
         folder,
-        'Borderlands 3',
+        "Tiny Tina's Wonderlands",
         'OakGame',
         'Binaries',
         'Win64',
-        'Borderlands3.exe'
+        'Wonderlands.exe'
       )
       if (sandbox.manager.fileExists(check)) {
-        return path.join(folder, 'Borderlands 3')
+        return path.join(folder, "Tiny Tina's Wonderlands")
       }
     }
     return null
@@ -80,11 +80,11 @@ module.exports.default = {
     }
 
     // Check for Hotfixes
-    if (find(stagingPath, (f) => f.toLowerCase().endsWith('.bl3hotfix'))) {
+    if (find(stagingPath, (f) => f.toLowerCase().endsWith('.wlhotfix'))) {
       return 'Hotfix'
     }
     if (find(stagingPath, (f) => f.toLowerCase().endsWith('.json'))) {
-      // Simple JSONs might be hotfixes, but risky. Let's stick to explicit naming or bl3hotfix
+      // Simple JSONs might be hotfixes, but risky.
       if (find(stagingPath, (f) => f.toLowerCase().includes('hotfix'))) return 'Hotfix'
     }
 
@@ -142,7 +142,7 @@ module.exports.default = {
 
   prepareForModding: async (gamePath) => {
     const path = require('path')
-    sandbox.console.log('Preparing Borderlands 3 for modding...')
+    sandbox.console.log("Preparing Tiny Tina's Wonderlands for modding...")
 
     const installFromGithub = async (repo, filePattern, renameTo = null) => {
       sandbox.console.log(`Checking latest release for ${repo}...`)
@@ -189,7 +189,8 @@ module.exports.default = {
     }
 
     await installFromGithub('apple1417/OpenHotfixLoader', /OpenHotfixLoader\.zip/i)
-    await installFromGithub('bl-sdk/oak-mod-manager', /bl3-sdk\.zip/i, 'OakModManager.zip')
+    // Modified sdk zip requirement and path
+    await installFromGithub('bl-sdk/oak-mod-manager', /wl-sdk\.zip/i, 'OakModManager.zip')
 
     return true
   },
@@ -245,7 +246,7 @@ module.exports.default = {
       },
       {
         id: 'hotfix',
-        match: (f) => f.ext === '.bl3hotfix',
+        match: (f) => f.ext === '.wlhotfix',
         dest: (f) => path.join(binariesDir, 'Plugins', 'ohl-mods', f.basename)
       },
       {
@@ -306,8 +307,7 @@ module.exports.default = {
         dest = path.join(gamePath, file.relative)
       }
 
-      // Ensure directory exists (implied by copyFile handling in some envs, but safer to try if we could)
-      // sandbox.manager doesn't expose mkdir, but copyFile usually handles it or the manager implementation should.
+      // Ensure directory exists (implied by copyFile handling in some envs)
       sandbox.manager.copyFile(file.absolute, dest)
     }
     return true
