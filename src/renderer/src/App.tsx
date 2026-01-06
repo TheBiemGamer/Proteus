@@ -597,6 +597,35 @@ function App() {
                       </div>
                     ))
                   )}
+
+                  {currentGame.nexusSlug && (
+                    <button
+                      onClick={() =>
+                        (window as any).electron.openUrl(
+                          `https://www.nexusmods.com/${currentGame.nexusSlug}`
+                        )
+                      }
+                      className="w-full py-4 mt-4 bg-[#da8e35]/10 hover:bg-[#da8e35]/20 border border-[#da8e35]/30 hover:border-[#da8e35]/50 border-dashed rounded-xl flex items-center justify-center space-x-3 text-[#da8e35] hover:text-[#ffaa46] transition-all group"
+                    >
+                      <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                        <path d="M12 0C5.373 0 0 5.373 0 12c0 6.627 5.373 12 12 12s12-5.373 12-12C24 5.373 18.627 0 12 0zm1 17h-2v-2h2v2zm0-4h-2V7h2v6z" />
+                      </svg>
+                      <span className="font-semibold">Get more mods on Nexus Mods</span>
+                      <svg
+                        className="w-4 h-4 transform group-hover:translate-x-1 transition-transform"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M17 8l4 4m0 0l-4 4m4-4H3"
+                        />
+                      </svg>
+                    </button>
+                  )}
                 </div>
               )}
             </div>
