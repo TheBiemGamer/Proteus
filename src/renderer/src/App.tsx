@@ -12,7 +12,8 @@ import {
   Gamepad2,
   Box,
   Settings,
-  RefreshCw
+  RefreshCw,
+  Wrench
 } from 'lucide-react'
 import './assets/main.css'
 import { translations } from './utils/i18n'
@@ -28,6 +29,8 @@ interface Game {
   managed: boolean
   path: string
   steamAppId?: string
+  iconUrl?: string
+  toolButtons?: Array<{ label: string; action: string }>
   modSources?: Array<{ text: string; url: string }>
 }
 
@@ -42,6 +45,7 @@ interface Mod {
   author?: string
   description?: string
   imageUrl?: string
+  note?: string
 }
 
 const getTypeColor = (type: string) => {
@@ -223,6 +227,7 @@ function App() {
       addToast(t.modInstalled, 'success')
       setInstallPreview(null)
       loadMods(currentGame.id)
+      refreshGames() // Refresh game details (e.g. tool buttons)
     } catch (e) {
       console.error(e)
       addToast('Install failed', 'error')
@@ -237,6 +242,7 @@ function App() {
       await (window as any).electron.toggleMod(currentGame.id, detailMod.id, !detailMod.enabled)
       setDetailMod((prev) => (prev ? { ...prev, enabled: !prev.enabled } : null))
       loadMods(currentGame.id)
+      refreshGames()
       if (!detailMod.enabled) addToast(t.modEnabled, 'success')
       else addToast(t.modDisabled, 'info')
     } catch (e) {
@@ -251,6 +257,7 @@ function App() {
     try {
       await (window as any).electron.deleteMod(currentGame.id, detailMod.id)
       setDetailMod(null)
+      refreshGames()
       loadMods(currentGame.id)
       addToast(t.modDeleted, 'success')
     } catch (e) {
@@ -298,6 +305,8 @@ function App() {
     try {
       const gameId = await (window as any).electron.installModpack(previewModpack.filePath)
 
+      await refreshGames()
+
       if (games.find((g) => g.id === gameId)) {
         setSelectedGame(gameId)
         // Force refresh logic if needed, but useEffect handles it
@@ -306,7 +315,7 @@ function App() {
         if (selectedGame === gameId) loadMods(gameId)
       } else {
         // Game not in list? Refresh games first?
-        await refreshGames()
+        // await refreshGames() // Already called above
         setSelectedGame(gameId)
       }
 
@@ -350,7 +359,10 @@ function App() {
       if (result.error) {
         addToast(result.error, 'error')
       } else if (result.updateAvailable) {
-        addToast(`${t.updateAvailable || 'Update available'}: v${result.latestVersion}`, 'success')
+        addToast(
+          `${t.updateAvailable || 'Update available'}: ${/^\d/.test(result.latestVersion) ? 'v' : ''}${result.latestVersion}`,
+          'success'
+        )
       } else if (result.supported === false) {
         // addToast(t.updateNotSupported || 'Update check not supported', 'info')
       } else {
@@ -365,6 +377,7 @@ function App() {
     if (!selectedGame) return
     await (window as any).electron.toggleMod(selectedGame, mod.id, !mod.enabled)
     loadMods(selectedGame)
+    refreshGames()
     addToast(!mod.enabled ? t.modEnabled : t.modDisabled, 'info')
   }
 
@@ -373,6 +386,7 @@ function App() {
     if (confirm(t.confirmDeleteMod.replace('{modname}', mod.name))) {
       await (window as any).electron.deleteMod(selectedGame, mod.id)
       loadMods(selectedGame)
+      refreshGames()
       addToast(t.modDeleted, 'success')
     }
   }
@@ -382,6 +396,7 @@ function App() {
     if (confirm(t.confirmDisableAll)) {
       await (window as any).electron.disableAllMods(selectedGame)
       loadMods(selectedGame)
+      refreshGames()
       addToast(t.modsDisabled, 'warning')
     }
   }
@@ -459,14 +474,21 @@ function App() {
               }`}
             >
               <div className="flex items-center space-x-3">
-                {/* Game Icon Placeholder */}
-                <div
-                  className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs shadow-inner ${
-                    selectedGame === g.id ? 'bg-blue-600' : 'bg-gray-700 group-hover:bg-gray-600'
-                  }`}
-                >
-                  {g.name.substring(0, 1)}
-                </div>
+                {/* Game Icon */}
+                {g.iconUrl ? (
+                  <img
+                    src={g.iconUrl}
+                    className="w-8 h-8 rounded-lg shadow-inner object-cover bg-gray-900"
+                  />
+                ) : (
+                  <div
+                    className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs shadow-inner ${
+                      selectedGame === g.id ? 'bg-blue-600' : 'bg-gray-700 group-hover:bg-gray-600'
+                    }`}
+                  >
+                    {g.name.substring(0, 1)}
+                  </div>
+                )}
                 <span className="font-medium truncate">{g.name}</span>
               </div>
 
@@ -484,6 +506,21 @@ function App() {
 
           {currentGame && currentGame.managed && view === 'library' && (
             <>
+              {currentGame.toolButtons &&
+                currentGame.toolButtons.map((btn, idx) => (
+                  <button
+                    key={idx}
+                    onClick={async () => {
+                      await (window as any).electron.runExtensionCommand(currentGame.id, btn.action)
+                    }}
+                    className="w-full py-2 bg-orange-900/20 hover:bg-orange-900/40 border border-orange-500/20 hover:border-orange-500/40 rounded-lg text-sm text-orange-200 transition-all flex items-center justify-center space-x-2"
+                  >
+                    <Wrench className="w-4 h-4" />
+                    <span>{btn.label}</span>
+                  </button>
+                ))}
+              <div className="h-px bg-gray-800 my-2 mx-1" />
+
               <button
                 onClick={() => setShowExportModal(true)}
                 className="w-full py-2 bg-purple-900/20 hover:bg-purple-900/40 border border-purple-500/20 hover:border-purple-500/40 rounded-lg text-sm text-purple-200 transition-all flex items-center justify-center space-x-2"
@@ -877,10 +914,11 @@ function App() {
                               </h3>
                               {mod.version && (
                                 <span className="text-[10px] font-mono bg-gray-800 text-gray-300 px-1.5 py-0.5 rounded border border-gray-700">
-                                  v{mod.version}
+                                  {/^\d/.test(mod.version) ? 'v' : ''}
+                                  {mod.version}
                                 </span>
                               )}
-                              {mod.sourceUrl && (
+                              {mod.sourceUrl && !mod.sourceUrl.includes('nexusmods.com') && (
                                 <>
                                   <button
                                     onClick={() => (window as any).electron.openUrl(mod.sourceUrl)}
@@ -912,9 +950,19 @@ function App() {
                                         currentGame?.modSources?.find((s) =>
                                           s.url.includes('nexusmods.com')
                                         )?.url || 'https://www.nexusmods.com/games'
-                                      ;(window as any).electron.openUrl(
-                                        `${baseUrl}/mods/${mod.nexusId}`
-                                      )
+                                      let targetUrl = `${baseUrl}/mods/${mod.nexusId}`
+
+                                      // Prefer specific sourceUrl if it's a Nexus link (handles tools like Fluffy on /site/)
+                                      if (
+                                        mod.sourceUrl &&
+                                        mod.nexusId &&
+                                        mod.sourceUrl.includes('nexusmods.com/') &&
+                                        mod.sourceUrl.includes(mod.nexusId)
+                                      ) {
+                                        targetUrl = mod.sourceUrl
+                                      }
+
+                                      ;(window as any).electron.openUrl(targetUrl)
                                     }}
                                     className="text-gray-600 hover:text-blue-400 transition-colors"
                                     title="View on Nexus Mods"
@@ -931,6 +979,13 @@ function App() {
                                 </>
                               )}
                             </div>
+
+                            {mod.note && (
+                              <div className="mt-1 text-xs text-yellow-400 font-medium flex items-center space-x-1">
+                                <AlertTriangle className="w-3.5 h-3.5" />
+                                <span>{mod.note}</span>
+                              </div>
+                            )}
 
                             <div className="flex items-center mt-1 space-x-2">
                               <span
@@ -997,7 +1052,13 @@ function App() {
                         className="w-full py-4 bg-[#da8e35]/10 hover:bg-[#da8e35]/20 border border-[#da8e35]/30 hover:border-[#da8e35]/50 border-dashed rounded-xl flex items-center justify-center space-x-3 text-[#da8e35] hover:text-[#ffaa46] transition-all group"
                       >
                         <Download className="w-5 h-5 fill-current" />
-                        <span className="font-semibold">{t.getMoreMods}</span>
+                        <span className="font-semibold">
+                          {currentGame.modSources &&
+                          currentGame.modSources.length === 1 &&
+                          currentGame.modSources[0].text
+                            ? `Get Mods from ${currentGame.modSources[0].text}`
+                            : t.getMoreMods}
+                        </span>
                         <ChevronDown
                           className={`w-4 h-4 transition-transform ${showSourcesMenu ? 'rotate-180' : 'group-hover:translate-x-1'}`}
                         />
@@ -1131,7 +1192,8 @@ function App() {
                         previewModpack.meta.gameId}
                     </span>
                     <span>
-                      v{previewModpack.meta.version} by {previewModpack.meta.author}
+                      {/^\d/.test(previewModpack.meta.version) ? 'v' : ''}
+                      {previewModpack.meta.version} by {previewModpack.meta.author}
                     </span>
                   </div>
                 </div>
@@ -1146,7 +1208,8 @@ function App() {
                       previewModpack.meta.gameId}
                   </span>
                   <span>
-                    v{previewModpack.meta.version} by {previewModpack.meta.author}
+                    {/^\d/.test(previewModpack.meta.version) ? 'v' : ''}
+                    {previewModpack.meta.version} by {previewModpack.meta.author}
                   </span>
                 </div>
               </div>
@@ -1231,7 +1294,8 @@ function App() {
               )}
               <div className="flex flex-wrap gap-2">
                 <span className="px-2 py-1 bg-gray-800 rounded text-xs text-gray-400 border border-gray-700">
-                  v{installPreview.meta.version || '?.?.?'}
+                  {/^\d/.test(installPreview.meta.version || '') ? 'v' : ''}
+                  {installPreview.meta.version || '?.?.?'}
                 </span>
                 <span className="px-2 py-1 bg-gray-800 rounded text-xs text-blue-400 border border-gray-700">
                   {installPreview.meta.author || 'Unknown Author'}
@@ -1334,10 +1398,23 @@ function App() {
                 {detailMod.nexusId && (
                   <button
                     onClick={() => {
+                      const nexusId = detailMod.nexusId
+                      if (!nexusId) return
+
                       const baseUrl =
                         currentGame?.modSources?.find((s) => s.url.includes('nexusmods.com'))
                           ?.url || 'https://www.nexusmods.com/games'
-                      ;(window as any).electron.openUrl(`${baseUrl}/mods/${detailMod.nexusId}`)
+                      let targetUrl = `${baseUrl}/mods/${nexusId}`
+
+                      if (
+                        detailMod.sourceUrl &&
+                        detailMod.sourceUrl.includes('nexusmods.com/') &&
+                        detailMod.sourceUrl.includes(nexusId)
+                      ) {
+                        targetUrl = detailMod.sourceUrl
+                      }
+
+                      ;(window as any).electron.openUrl(targetUrl)
                     }}
                     className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg font-medium border border-gray-700 flex items-center space-x-2"
                   >
@@ -1345,7 +1422,7 @@ function App() {
                     <span>Nexus Mods</span>
                   </button>
                 )}
-                {detailMod.sourceUrl && (
+                {detailMod.sourceUrl && !detailMod.sourceUrl.includes('nexusmods.com') && (
                   <button
                     onClick={() => (window as any).electron.openUrl(detailMod.sourceUrl)}
                     className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg font-medium border border-gray-700 flex items-center space-x-2"

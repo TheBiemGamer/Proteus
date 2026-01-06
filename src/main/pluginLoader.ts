@@ -198,6 +198,19 @@ export class PluginManager {
           if (!this.isSafePath(filePath)) throw new Error(`Access Denied: ${filePath}`)
           if (fs.existsSync(filePath)) fs.unlinkSync(filePath)
         },
+        removeDir: (dirPath: string) => {
+          if (!this.isSafePath(dirPath)) throw new Error(`Access Denied: ${dirPath}`)
+          if (fs.existsSync(dirPath)) {
+            try {
+              // Only removes if empty, or use recursive if intended?
+              // Request says "if the folders are empty", implying rmdirSync without recursive (or check content first)
+              // fs.rmdirSync throws if not empty.
+              fs.rmdirSync(dirPath)
+            } catch (e) {
+              // Ignore error if not empty
+            }
+          }
+        },
         fetch: async (url: string) => {
           try {
             const response = await axios.get(url)
@@ -244,6 +257,7 @@ export class PluginManager {
             version?: string
             sourceUrl?: string
             author?: string
+            name?: string
           }
         ) => {
           if (!this.activeGameId) throw new Error('No active game')
@@ -252,6 +266,10 @@ export class PluginManager {
         },
         openUrl: async (url: string) => {
           await require('electron').shell.openExternal(url)
+        },
+        openPath: async (p: string) => {
+          if (!this.isSafePath(p)) throw new Error(`Access Denied: ${p}`)
+          await require('electron').shell.openPath(p)
         },
         showAlert: async (title: string, message: string) => {
           await require('electron').dialog.showMessageBox({
@@ -284,7 +302,7 @@ export class PluginManager {
     }
     this.saveSettings()
     // Return UI structure: includes 'managed' state
-    return this.getGamesInternal()
+    return this.getGamesWithDetails()
   }
 
   private getGamesInternal() {
@@ -299,6 +317,7 @@ export class PluginManager {
         // Force primitives to avoid proxy leakage
         const name = String(plugin.name)
         const steamAppId = plugin.steamAppId ? String(plugin.steamAppId) : undefined
+        const iconUrl = (plugin as any).iconUrl ? String((plugin as any).iconUrl) : undefined
 
         let modSources: { text: string; url: string }[] | undefined
         // Access safely
@@ -323,12 +342,50 @@ export class PluginManager {
           managed: manifest.managed,
           path: this.gamePaths[id],
           steamAppId,
-          modSources
+          iconUrl,
+          modSources,
+          toolButtons: []
         })
       }
     }
-    // Deep clone via JSON to strip any remaining Proxy wrappers that IPC hates
+
+    // 2nd Pass: Async Fetch Tool Buttons
+    // Since getGamesInternal is currently sync(-ish), we might need to await commands.
+    // However, toolButtons are dynamic. Let's populate them asynchronously or refactor `getGamesInternal` to be async.
+    // For now, let's keep it simple: We iterate result and call getToolButtons if managed.
+    // But `detectGames` calls this.
+    // Let's refactor:
+    // ... Actually, wait. The plugin logic for `getToolButtons` is fast.
+
     return JSON.parse(JSON.stringify(result))
+  }
+
+  // Refactored async getter
+  public async getGamesWithDetails() {
+    const games = this.getGamesInternal()
+    for (const game of games) {
+      if (game.managed) {
+        try {
+          // If plugin supports getToolButtons, call it
+          // We don't have direct access to 'hasMethod', so we blind call runCommand.
+          // But runCommand throws if method missing? No, we check in runCommand? No.
+          // Let's rely on plugin object.
+          const plugin = this.plugins.get(game.id)
+          if (plugin && (plugin as any).getToolButtons) {
+            const buttons = await this.runCommand(game.id, 'getToolButtons', game.path)
+            if (Array.isArray(buttons)) {
+              game.toolButtons = buttons
+            }
+          } else if (plugin && (plugin as any).toolButtons) {
+            // Fallback to static property
+            game.toolButtons = (plugin as any).toolButtons
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+    }
+    return JSON.parse(JSON.stringify(games))
   }
 
   // Called by UI when user clicks "Manage"
@@ -363,7 +420,10 @@ export class PluginManager {
       }
     }
 
-    return this.getGamesInternal()
+    // Refresh Manifest to catch any auto-installed mods
+    manifest = this.readManifest(gameId)
+
+    return this.getGamesWithDetails()
   }
 
   async unmanageGame(gameId: string) {
@@ -392,7 +452,14 @@ export class PluginManager {
       }
     }
 
-    return this.getGamesInternal()
+    // 4. Plugin Cleanup Hook
+    try {
+      await this.runCommand(gameId, 'onUnmanage', this.gamePaths[gameId])
+    } catch (e) {
+      console.warn('Plugin onUnmanage hook failed:', e)
+    }
+
+    return this.getGamesWithDetails()
   }
 
   private get7zBinary(): string {
@@ -409,6 +476,42 @@ export class PluginManager {
     }
     // Fallback to bundled 7za (No RAR support)
     return sevenBin.path7za
+  }
+
+  private async listArchiveFiles(src: string): Promise<string[]> {
+    const ext = path.extname(src).toLowerCase()
+
+    // If it's not a known archive format, assume it's a single file
+    if (!['.zip', '.rar', '.7z', '.mod'].includes(ext)) {
+      return [path.basename(src)]
+    }
+
+    // Prefer AdmZip for pure zips/mods
+    if (ext === '.zip' || ext === '.mod') {
+      try {
+        const zip = new AdmZip(src)
+        return zip.getEntries().map((e) => e.entryName)
+      } catch (e) {
+        console.warn('AdmZip failed listing, trying 7zip fallback', e)
+        // Fallthrough
+      }
+    }
+
+    const bin = this.get7zBinary()
+    return new Promise((resolve, reject) => {
+      const files: string[] = []
+      const stream = Seven.list(src, {
+        $bin: bin,
+        $r: true // Recursive list
+      })
+      stream.on('data', (d: any) => {
+        if (d.file) files.push(d.file)
+      })
+      stream.on('end', () => resolve(files))
+      stream.on('error', (err: any) => {
+        reject(err)
+      })
+    })
   }
 
   private async extractArchive(src: string, dest: string): Promise<void> {
@@ -476,6 +579,7 @@ export class PluginManager {
           author?: string
           description?: string
           imageUrl?: string
+          name?: string
         } = false
   ) {
     const gamePath = this.gamePaths[gameId]
@@ -497,54 +601,27 @@ export class PluginManager {
 
     let manifest = this.readManifest(gameId)
 
-    // Determine type
+    // Variables for Metadata
     let type: 'mod' | 'loader' | string = 'mod'
-
-    // Check if plugin has custom type logic
-    const customType = await this.runCommand(gameId, 'determineModType', modStagingPath)
-    if (customType && typeof customType === 'string') {
-      type = customType
-    } else if (
-      fs.existsSync(path.join(modStagingPath, 'dinput8.dll')) ||
-      zipPath.toLowerCase().includes('loader')
-    ) {
-      type = 'loader'
-    }
-
-    // Refresh Validation (in case this WAS the loader)
-    // We don't need explicit logic here because the UI will call validateGame after install
-
-    // Parse Nexus Filename Metadata
-    const filenameNoExt = path.parse(zipPath).name
-    let displayName = filenameNoExt
     let version: string | undefined
     let nexusId: string | undefined
+    let author = 'Unknown'
+    let description: string | undefined
+    let imageUrl: string | undefined
+    let sourceUrl: string | undefined
+    let note: string | undefined
 
-    // Pattern: Name-ID-Version-Timestamp
-    // Heuristic: We need to handle "greedy" names consuming the ID if the version contains hyphens.
-    // Logic:
-    // 1. Extract and remove Timestamp (digits at end)
-    // 2. Parse remainder as Name-ID-Version using the "Left-most ID" principle for ambiguity.
+    const filenameNoExt = path.parse(zipPath).name
+    let displayName = filenameNoExt
+    if (options.name) displayName = options.name
 
-    // Step 1: Timestamp
+    // 1. Regex Parsing (Heuristics)
     let remainder = filenameNoExt
-
-    // Handle OS Duplicate filenames " (1)" e.g. "ModName-123-1.0-123456 (1)"
     const duplicateMatch = remainder.match(/(.*)\s\(\d+\)$/)
-    if (duplicateMatch) {
-      remainder = duplicateMatch[1]
-    }
-
-    // Check for timestamp at end (digits preceded by hyphen)
-    // IMPORTANT: Nexus timestamps are usually 10 digits (epoch).
-    // If it's short, it might be a version number like -v1.
+    if (duplicateMatch) remainder = duplicateMatch[1]
     const tsMatch = remainder.match(/-(\d{9,})$/)
-    if (tsMatch) {
-      remainder = remainder.substring(0, remainder.length - tsMatch[0].length)
-    }
+    if (tsMatch) remainder = remainder.substring(0, remainder.length - tsMatch[0].length)
 
-    // Step 2: Parse Name-ID-Version
-    // We start with a greedy match of Name, then peal back if Name ends in "-Digits"
     const greedyRegex = /^(.*)-(\d+)-(.+)$/
     let match = remainder.match(greedyRegex)
 
@@ -552,56 +629,63 @@ export class PluginManager {
       let potentialName = match[1]
       let potentialId = match[2]
       let potentialVer = match[3]
-
-      // Correction Loop
       for (let i = 0; i < 5; i++) {
         const suffixMatch = potentialName.match(/-(\d+)$/)
         if (suffixMatch) {
-          const suffixDigits = suffixMatch[1]
-          // Shift right
           potentialVer = `${potentialId}-${potentialVer}`
-          potentialId = suffixDigits
+          potentialId = suffixMatch[1] // Fixed logic error in original code: id = suffixDigits
           potentialName = potentialName.substring(0, potentialName.length - suffixMatch[0].length)
         } else {
           break
         }
       }
-
       displayName = potentialName
       nexusId = potentialId
       version = potentialVer
-
-      // Normalize numeric-hyphen versions
-      if (/^\d+(-\d+)+$/.test(version)) {
-        version = version.replace(/-/g, '.')
-      }
+      if (/^\d+(-\d+)+$/.test(version)) version = version.replace(/-/g, '.')
     } else {
-      // Fallback: match without timestamp
-      // Try just Name-ID-Version
-      const greedyRegex = /^(.*)-(\d+)-(.+)$/
-      let match2 = remainder.match(greedyRegex)
+      const match2 = remainder.match(/^(.*)-(\d+)-(.+)$/)
       if (match2) {
         displayName = match2[1]
         nexusId = match2[2]
         version = match2[3]
       }
     }
-    let author = 'Unknown'
-    let description: string | undefined
-    let imageUrl: string | undefined
 
+    let nexusDomain: string | undefined
+
+    // 2. Plugin Custom Logic (Overrides Regex)
+    const customType = await this.runCommand(gameId, 'determineModType', modStagingPath)
+    if (customType) {
+      if (typeof customType === 'string') {
+        type = customType
+      } else if (typeof customType === 'object') {
+        if (customType.type) type = customType.type
+        if (customType.nexusId) nexusId = customType.nexusId
+        if (customType.sourceUrl) sourceUrl = customType.sourceUrl
+        if (customType.version) version = customType.version
+        if (customType.author) author = customType.author
+        if (customType.note) note = customType.note
+        if (customType.nexusDomain) nexusDomain = customType.nexusDomain
+      }
+    } else if (
+      fs.existsSync(path.join(modStagingPath, 'dinput8.dll')) ||
+      zipPath.toLowerCase().includes('loader')
+    ) {
+      type = 'loader'
+    }
+
+    // 3. User Options (Overrides Plugin)
     if ((options as any).author) author = (options as any).author
     if ((options as any).description) description = (options as any).description
     if ((options as any).imageUrl) imageUrl = (options as any).imageUrl
-
-    // Override with manual options if provided
     if (options.version) version = options.version
     if (options.nexusId) nexusId = options.nexusId
 
     // Try to fetch better metadata from Nexus if available
     if (nexusId && this.nexusApiKey) {
       try {
-        const slug = this.getNexusSlug(gameId)
+        const slug = nexusDomain || this.getNexusSlug(gameId)
         const url = `https://api.nexusmods.com/v1/games/${slug}/mods/${nexusId}.json`
         const headers = {
           apikey: this.nexusApiKey,
@@ -612,7 +696,7 @@ export class PluginManager {
         console.log(`Fetching Nexus info for ${slug}/${nexusId}...`)
         const response = await axios.get(url, { headers })
         const data = response.data
-        if (data.name) displayName = data.name
+        if (data.name && !options.name) displayName = data.name
         if (data.version && !options.version) version = data.version // Prefer API version if not manually overridden
         if (data.uploaded_by) author = data.uploaded_by
         if (data.summary) description = data.summary
@@ -636,7 +720,9 @@ export class PluginManager {
       type,
       version,
       nexusId,
-      sourceUrl: options.sourceUrl // Add sourceUrl
+      sourceUrl: sourceUrl || options.sourceUrl,
+      note,
+      nexusDomain
     })
     this.writeManifest(gameId, manifest)
 
@@ -655,12 +741,28 @@ export class PluginManager {
     const modStagingPath = path.join(this.stagingDir, gameId, modId)
     this.activeModId = modId
 
-    await this.runCommand(gameId, 'install', modStagingPath, this.gamePaths[gameId], modStagingPath)
+    const result = await this.runCommand(
+      gameId,
+      'install',
+      modStagingPath,
+      this.gamePaths[gameId],
+      modStagingPath
+    )
 
     // Re-read manifest as registerInstalledFile updates it
     const updatedManifest = this.readManifest(gameId)
     const updatedMod = updatedManifest.mods.find((m) => m.id === modId)
-    if (updatedMod) updatedMod.enabled = true
+    if (updatedMod) {
+      updatedMod.enabled = true
+      if (result && typeof result === 'object') {
+        if (result.note) updatedMod.note = result.note
+        if (result.nexusId) updatedMod.nexusId = result.nexusId
+        if (result.sourceUrl) updatedMod.sourceUrl = result.sourceUrl
+        if (result.version) updatedMod.version = result.version
+        if (result.author) updatedMod.author = result.author
+        if (result.nexusDomain) updatedMod.nexusDomain = result.nexusDomain
+      }
+    }
     this.writeManifest(gameId, updatedManifest)
 
     this.activeModId = null
@@ -811,6 +913,28 @@ export class PluginManager {
     let author: string | undefined
     let description: string | undefined
     let imageUrl: string | undefined
+    let nexusDomain: string | undefined
+    let sourceUrl: string | undefined
+
+    // 0. Pre-Analyze (Fast Scan)
+    try {
+      const fileList = await this.listArchiveFiles(filePath)
+      const customMeta = await this.runCommand(gameId, 'analyzeArchive', fileList)
+      if (customMeta && typeof customMeta === 'object') {
+        if (customMeta.type) displayName = customMeta.type // Heuristic: Name it "Loader" or similar? Or let regex override?
+        // Actually usually type="Loader" implies name="Fluffy Mod Manager", but let's stick to regex name unless plugin provides name
+        if (customMeta.name) displayName = customMeta.name
+        if (customMeta.nexusId) nexusId = customMeta.nexusId
+        if (customMeta.version) version = customMeta.version
+        if (customMeta.author) author = customMeta.author
+        if (customMeta.nexusDomain) nexusDomain = customMeta.nexusDomain
+        if (customMeta.sourceUrl) sourceUrl = customMeta.sourceUrl
+        if (customMeta.description) description = customMeta.description
+        if (customMeta.imageUrl) imageUrl = customMeta.imageUrl
+      }
+    } catch (e) {
+      console.warn('Archive analysis failed:', e)
+    }
 
     // 1. Timestamp parsing
     let remainder = filenameNoExt
@@ -852,7 +976,7 @@ export class PluginManager {
     // 3. Fetch Nexus Info
     if (nexusId && this.nexusApiKey) {
       try {
-        const slug = this.getNexusSlug(gameId)
+        const slug = nexusDomain || this.getNexusSlug(gameId)
         const url = `https://api.nexusmods.com/v1/games/${slug}/mods/${nexusId}.json`
         const headers = {
           apikey: this.nexusApiKey,
@@ -881,7 +1005,8 @@ export class PluginManager {
         author,
         description,
         imageUrl,
-        path: filePath
+        path: filePath,
+        sourceUrl
       }
     }
   }

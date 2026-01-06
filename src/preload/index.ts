@@ -28,6 +28,9 @@ const api = {
   toggleLoader: (gameId: string, enable: boolean) =>
     ipcRenderer.invoke('run-extension-command', gameId, 'toggleLoader', enable),
 
+  runExtensionCommand: (gameId: string, command: string, args?: any) =>
+    ipcRenderer.invoke('run-extension-command', gameId, command, args),
+
   installExtension: () => ipcRenderer.invoke('install-extension-dialog'),
   // Extension Manager API
   getExtensionList: () => ipcRenderer.invoke('get-extension-list'),

@@ -56,8 +56,8 @@ app.whenReady().then(() => {
   pluginManager.autoDetectGames()
 
   // listen for list extentions
-  ipcMain.handle('get-extensions', () => {
-    return pluginManager.getPlugins()
+  ipcMain.handle('get-extensions', async () => {
+    return await pluginManager.getGamesWithDetails()
   })
 
   ipcMain.handle('get-app-version', () => {

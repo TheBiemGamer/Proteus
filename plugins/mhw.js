@@ -7,6 +7,7 @@ module.exports.default = {
   executable: 'MonsterHunterWorld.exe',
   steamAppId: '582010',
   modFileExtensions: ['zip', 'rar', '7z', 'mod'],
+  iconUrl: 'https://cdn2.steamgriddb.com/icon_thumb/c95d62c68196b2d0c1c1de8c7eeb6d50.png',
 
   detect: async (candidates) => {
     const path = require('path')

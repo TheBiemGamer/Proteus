@@ -2,10 +2,15 @@ export interface IGameExtension {
   id: string
   name: string
   executable: string
-  steamAppId?: string // Optional Steam App ID
+  steamAppId?: string
+  iconUrl?: string
   modSources?: Array<{ text: string; url: string }>
   detect: (candidates: string[]) => Promise<string | null>
-  install: (sourcePath: string, gamePath: string, originalZipPath: string) => Promise<boolean>
+  install: (
+    sourcePath: string,
+    gamePath: string,
+    originalZipPath: string
+  ) => Promise<boolean | { success: boolean; note?: string }>
   toggleLoader?: (enable: boolean) => Promise<boolean>
 }
 
@@ -14,7 +19,7 @@ export interface IMod {
   name: string
   enabled: boolean
   installDate: number
-  files: string[] // List of absolute paths installed
+  files: string[]
   type: 'mod' | 'loader' | string
   version?: string
   nexusId?: string
@@ -22,6 +27,8 @@ export interface IMod {
   author?: string
   description?: string
   imageUrl?: string
+  note?: string
+  nexusDomain?: string
 }
 
 export interface IModpackMeta {

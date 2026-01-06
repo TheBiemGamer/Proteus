@@ -10,6 +10,7 @@ module.exports.default = {
   steamAppId: '397540',
   executable: 'OakGame/Binaries/Win64/Borderlands3.exe',
   modFileExtensions: ['zip', 'rar', '7z', 'mod', 'bl3hotfix', 'pak', 'mp4'],
+  iconUrl: 'https://cdn2.steamgriddb.com/icon/a3fb3740778d53b2d89b66c70066151b/32/256x256.png',
 
   detect: async (candidates) => {
     const path = require('path')
@@ -144,6 +145,8 @@ module.exports.default = {
         const data = await sandbox.manager.fetch(
           `https://api.github.com/repos/${repo}/releases/latest`
         )
+        const repoData = await sandbox.manager.fetch(`https://api.github.com/repos/${repo}`)
+
         const asset = data.assets.find((a) => a.name.match(filePattern))
         if (!asset) throw new Error(`No matching asset found for ${filePattern}`)
 
@@ -168,7 +171,9 @@ module.exports.default = {
           autoEnable: true,
           version: version,
           sourceUrl: sourceUrl,
-          author: author
+          author: author,
+          description: repoData.description || data.body,
+          imageUrl: data.author ? data.author.avatar_url : undefined
         })
         sandbox.manager.deleteFile(zipPath)
         return true

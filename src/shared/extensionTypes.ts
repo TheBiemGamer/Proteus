@@ -6,4 +6,5 @@ export interface IExtensionInfo {
   enabled: boolean
   version?: string
   author?: string
+  toolButtons?: { label: string; action: string }[]
 }

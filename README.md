@@ -92,16 +92,45 @@ module.exports.default = {
 
   /**
    * (Optional) Determine the type of mod based on its files.
+   * Can also return advanced metadata like Nexus ID, source URL, version, etc.
    * @param {string} stagingPath - Path where the mod zip was extracted.
-   * @returns {string|null} - "Loader", "Mod", "Patch", etc.
+   * @returns {string|object|null} - Mod type string or object with metadata.
    */
   determineModType: async (stagingPath) => {
+    // Return Object Example:
+    /*
+    return {
+      type: 'Loader',
+      nexusId: '123',
+      nexusDomain: 'site', // Optional: override domain for Nexus API (e.g. 'site' for generic tools)
+      sourceUrl: 'https://example.com',
+      note: 'Warning: Must configure manually'
+    }
+    */
     const path = require('path')
-    // Helper recursive find function available in your closure
     // ...
-    const hasDll = sandbox.manager.readDir(stagingPath).some((f) => f.endsWith('.dll'))
-    if (hasDll) return 'Loader'
-    return 'Mod'
+  },
+
+  /**
+   * (Optional) Fast-scan archive content to determine metadata without extraction.
+   * Useful for identifying unique tools (like Fluffy Mod Manager) immediately upon drag-drop.
+   * @param {string[]} files - List of file paths inside the archive.
+   * @returns {object|null} - Metadata object (same structure as determineModType return).
+   */
+  analyzeArchive: (files) => {
+    if (files.some(f => f.endsWith('tool.exe'))) {
+       return { type: 'Tool', name: 'My Tool', nexusId: '999' }
+    }
+    return null
+  },
+
+  /**
+   * (Optional) Cleanup hook called when the user unmanages the game.
+   * Use this to remove empty folders or config files created by the manager.
+   * @param {string} gamePath - The Game Root directory.
+   */
+  onUnmanage: async (gamePath) => {
+     // sandbox.manager.removeDir(path.join(gamePath, 'Mods'))
   },
 
   /**
@@ -146,6 +175,7 @@ The global `sandbox.manager` object provides the following methods for file syst
 | `downloadFile(url, destPath)`  | Downloads a file from URL to local path.                   |
 | `installMod(zipPath, options)` | Trigger the mod installation logic manually (rarely used). |
 | `deleteFile(path)`             | Deletes a file.                                            |
+| `removeDir(path)`              | Removes a directory (if empty).                            |
 | `symlinkFile(src, dest)`       | Creates a symbolic link from source to dest.               |
 | `openUrl(url)`                 | Opens the URL in the system default browser.               |
 | `showAlert(title, message)`    | Shows a native message box.                                |
