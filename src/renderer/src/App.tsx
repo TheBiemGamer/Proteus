@@ -231,20 +231,33 @@ function App() {
 
   const handleAnalyzeAndInstall = async (filePath: string) => {
     if (!currentGame) return
-    addToast('Analyzing file...', 'info')
 
-    try {
+    const promise = (async () => {
       const result = await (window as any).electron.analyzeFile(currentGame.id, filePath)
 
       if (result.type === 'modpack') {
         setPreviewModpack({ ...result.meta, filePath })
+        return `Modpack detected: ${result.meta.title}`
       } else {
         // Mod
         setInstallPreview({ file: filePath, meta: result.meta })
+        return 'Analysis complete'
       }
-    } catch (e: any) {
-      addToast('Failed to analyze file', 'error')
-    }
+    })()
+
+    toast.promise(
+      promise,
+      {
+        pending: 'Analyzing file...',
+        success: {
+          render({ data }) {
+            return data
+          }
+        },
+        error: 'Failed to analyze file'
+      },
+      { theme: 'dark' }
+    )
   }
 
   const confirmModInstall = async () => {
@@ -377,6 +390,18 @@ function App() {
   const handleManageGame = async () => {
     if (!selectedGame) return
     setIsManaging(true)
+    const toastId = toast.loading('Preparing game...', { theme: 'dark' })
+    const seenUrls = new Set<string>()
+
+    const cleanup = (window as any).electron.onDownloadProgress((data: any) => {
+      seenUrls.add(data.url)
+      const filename = data.url.split('/').pop()?.split('?')[0] || 'file'
+      toast.update(toastId, {
+        render: `Downloading resource ${seenUrls.size}: ${filename} (${data.progress}%)`,
+        progress: data.progress / 100
+      })
+    })
+
     try {
       const updatedGames = await (window as any).electron.manageGame(selectedGame)
       setGames(updatedGames)
@@ -386,9 +411,15 @@ function App() {
         setMods(list)
         // Refresh health check immediately after managing
         await checkHealth(selectedGame)
-        addToast(t.gameManaged, 'success')
+        toast.update(toastId, { render: t.gameManaged, type: 'success', isLoading: false })
+      } else {
+        toast.dismiss(toastId)
       }
+    } catch (e) {
+      console.error(e)
+      toast.update(toastId, { render: 'Setup failed', type: 'error', isLoading: false })
     } finally {
+      cleanup()
       setIsManaging(false)
     }
   }

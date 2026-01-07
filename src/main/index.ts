@@ -9,6 +9,14 @@ import { SettingsManager } from './settings'
 const pluginManager = new PluginManager(is.dev ? process.cwd() : process.resourcesPath)
 const settingsManager = new SettingsManager()
 
+// Relay events
+pluginManager.on('download-progress', (data) => {
+  const wins = BrowserWindow.getAllWindows()
+  if (wins.length > 0) {
+    wins[0].webContents.send('download-progress', data)
+  }
+})
+
 function createWindow(): void {
   // Create the browser window.
   const mainWindow = new BrowserWindow({

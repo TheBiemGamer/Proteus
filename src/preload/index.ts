@@ -23,6 +23,11 @@ const api = {
   checkModUpdate: (gameId: string, modId: string) =>
     ipcRenderer.invoke('check-mod-update', gameId, modId),
   validateGame: (gameId: string) => ipcRenderer.invoke('validate-game', gameId),
+  onDownloadProgress: (callback: (data: { url: string; progress: number }) => void) => {
+    const subscription = (_event, value) => callback(value)
+    ipcRenderer.on('download-progress', subscription)
+    return () => ipcRenderer.removeListener('download-progress', subscription)
+  },
 
   // New: Toggle command
   toggleLoader: (gameId: string, enable: boolean) =>
