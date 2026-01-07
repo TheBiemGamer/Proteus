@@ -265,7 +265,7 @@ module.exports.default = {
     }
 
     if (!hasFluffy) {
-      messages.push('Fluffy Mod Manager not found in game folder (needed for most mods).')
+      messages.push('Fluffy Mod Manager is missing (needed for many mods).')
       links.push({
         text: 'Download Fluffy Mod Manager',
         url: 'https://www.nexusmods.com/site/mods/818'

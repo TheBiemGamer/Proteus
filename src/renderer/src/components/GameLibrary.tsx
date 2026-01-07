@@ -71,8 +71,8 @@ export const GameLibrary: React.FC<GameLibraryProps> = ({
                 draggable={false}
                 className="group px-4 py-2 bg-[rgb(var(--theme-accent))] hover:bg-[rgb(var(--theme-accent))]/80 text-white rounded-xl shadow-lg shadow-[rgb(var(--theme-accent))]/20 god-transition god-hover flex items-center space-x-2 no-underline"
               >
-                <Gamepad2 className="w-5 h-5 fill-current" />
-                <span className="font-semibold">{t.playSteam}</span>
+                <Gamepad2 className="w-5 h-5 fill-current drop-shadow-md" />
+                <span className="font-semibold drop-shadow-md">{t.playSteam}</span>
               </a>
             )}
 
@@ -134,7 +134,7 @@ export const GameLibrary: React.FC<GameLibraryProps> = ({
         )}
       </header>
 
-      <div className="flex-1 p-6 overflow-y-auto custom-scrollbar">
+      <div className="flex-1 p-6 overflow-y-auto">
         {!currentGame.managed ? (
           <div className="flex flex-col items-center justify-center h-full text-center space-y-6">
             <div className="p-4 bg-white/5 rounded-full border border-white/5">

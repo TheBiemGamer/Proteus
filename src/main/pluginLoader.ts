@@ -507,19 +507,51 @@ export class PluginManager {
       let potentialName = match[1]
       let potentialId = match[2]
       let potentialVer = match[3]
-      for (let i = 0; i < 5; i++) {
-        const suffixMatch = potentialName.match(/-(\d+)$/)
+
+      // Keep track of the best candidate (left-most valid nexus ID found so far)
+      let bestName = potentialName
+      let bestId = potentialId
+      let bestVer = potentialVer
+
+      // Scan leftwards to find better ID candidates (consuming version parts)
+      // Increased depth and allow alphanumeric words to be consumed into version
+      for (let i = 0; i < 20; i++) {
+        // Match "-123" with optional spaces
+        const suffixMatch = potentialName.match(/\s*-\s*(\d+)$/)
         if (suffixMatch) {
-          potentialVer = `${potentialId}-${potentialVer}`
+          // Found a number to the left - new Candidate ID
+          if (potentialId) {
+            potentialVer = `${potentialId}-${potentialVer}`
+          }
           potentialId = suffixMatch[1]
           potentialName = potentialName.substring(0, potentialName.length - suffixMatch[0].length)
-        } else {
-          break
+
+          bestName = potentialName
+          bestId = potentialId
+          bestVer = potentialVer
+          continue
         }
+
+        // Check for non-numeric version parts (e.g. "pack", "v", "beta")
+        // Match "-word" with optional spaces
+        const wordMatch = potentialName.match(/\s*-\s*([a-zA-Z0-9_\.]+)$/)
+        if (wordMatch) {
+          const part = wordMatch[1]
+          if (potentialId) {
+            potentialVer = `${potentialId}-${potentialVer}`
+          }
+          potentialVer = `${part}-${potentialVer}`
+          potentialId = '' // Current "ID" slot is empty as we search left for a number
+          potentialName = potentialName.substring(0, potentialName.length - wordMatch[0].length)
+          continue
+        }
+
+        break
       }
-      displayName = potentialName
-      nexusId = potentialId
-      version = potentialVer
+
+      displayName = bestName
+      nexusId = bestId
+      version = bestVer
       if (/^\d+(-\d+)+$/.test(version)) version = version.replace(/-/g, '.')
     } else {
       const match2 = remainder.match(/^(.*)-(\d+)-(.+)$/)
@@ -804,17 +836,50 @@ export class PluginManager {
       let potentialId = match[2]
       let potentialVer = match[3]
 
-      for (let i = 0; i < 5; i++) {
-        const suffixMatch = potentialName.match(/-(\d+)$/)
+      // Keep track of the best candidate (left-most valid nexus ID found so far)
+      let bestName = potentialName
+      let bestId = potentialId
+      let bestVer = potentialVer
+
+      // Scan leftwards to find better ID candidates (consuming version parts)
+      // Increased depth and allow alphanumeric words to be consumed into version
+      for (let i = 0; i < 20; i++) {
+        // Match "-123" with optional spaces
+        const suffixMatch = potentialName.match(/\s*-\s*(\d+)$/)
         if (suffixMatch) {
-          potentialVer = `${potentialId}-${potentialVer}`
+          // Found a number to the left - new Candidate ID
+          if (potentialId) {
+            potentialVer = `${potentialId}-${potentialVer}`
+          }
           potentialId = suffixMatch[1]
           potentialName = potentialName.substring(0, potentialName.length - suffixMatch[0].length)
-        } else break
+
+          bestName = potentialName
+          bestId = potentialId
+          bestVer = potentialVer
+          continue
+        }
+
+        // Check for non-numeric version parts (e.g. "pack", "v", "beta")
+        // Match "-word" with optional spaces
+        const wordMatch = potentialName.match(/\s*-\s*([a-zA-Z0-9_\.]+)$/)
+        if (wordMatch) {
+          const part = wordMatch[1]
+          if (potentialId) {
+            potentialVer = `${potentialId}-${potentialVer}`
+          }
+          potentialVer = `${part}-${potentialVer}`
+          potentialId = '' // Current "ID" slot is empty as we search left for a number
+          potentialName = potentialName.substring(0, potentialName.length - wordMatch[0].length)
+          continue
+        }
+
+        break
       }
-      displayName = potentialName
-      nexusId = potentialId
-      version = potentialVer
+
+      displayName = bestName
+      nexusId = bestId
+      version = bestVer
       if (/^\d+(-\d+)+$/.test(version)) version = version.replace(/-/g, '.')
     } else {
       const match2 = remainder.match(/^(.*)-(\d+)-(.+)$/)

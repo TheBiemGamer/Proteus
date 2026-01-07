@@ -33,6 +33,8 @@ Create a new file `plugins/mygame.js`:
 module.exports.default = {
   id: 'mygame', // Internal ID (no spaces)
   name: 'My Game', // Display Name
+  version: '1.0.0', //plugin version
+  author: 'TheBiemGamer',
   steamAppId: '123450', // Steam App ID (for detection)
   executable: 'bin/game.exe', // Relative path to executable from Game Root
 
@@ -45,6 +47,11 @@ module.exports.default = {
   // Optional: Supported file extensions for the "Install Mod" dialog
   // Defaults to ['zip', 'rar', '7z', 'mod'] if not specified.
   modFileExtensions: ['zip', 'rar', '7z', 'pak', 'myformat'],
+  iconUrl: 'steamgriddb link or other image,',
+  theme: { //application changes color depending on game selected
+    accent: '168, 85, 247', // Purple
+    bgStart: '20, 10, 30'
+  }
 
   /**
    * Detects if the game is installed in one of the candidate paths.

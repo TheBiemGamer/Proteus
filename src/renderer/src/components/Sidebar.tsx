@@ -1,5 +1,14 @@
-import React from 'react'
-import { ChevronRight, ChevronLeft, Wrench, Archive, PackageOpen, Settings } from 'lucide-react'
+import React, { useState } from 'react'
+import {
+  ChevronRight,
+  ChevronLeft,
+  Wrench,
+  Archive,
+  PackageOpen,
+  Settings,
+  Search,
+  X
+} from 'lucide-react'
 import { Game } from '../types'
 
 interface SidebarProps {
@@ -29,6 +38,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setShowExportModal,
   handlePickModpack
 }) => {
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+
   return (
     <aside
       className={`${isSidebarCollapsed ? 'w-20' : 'w-20 lg:w-72'} glass-dock rounded-2xl flex flex-col god-transition z-10`}
@@ -48,67 +60,116 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </p>
         </div>
 
-        <button
-          onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-          className={`rounded-xl hover:bg-white/5 text-[rgb(var(--theme-text-muted))] hover:text-white transition-colors outline-none ${isSidebarCollapsed ? 'p-1' : 'p-2'}`}
-          title={isSidebarCollapsed ? 'Expand' : 'Collapse'}
-        >
-          {isSidebarCollapsed ? (
-            <ChevronRight className="w-6 h-6 text-[rgb(var(--theme-accent))]" />
-          ) : (
-            <ChevronLeft className="w-5 h-5" />
+        <div className="flex items-center gap-1">
+          {!isSidebarCollapsed && (
+            <button
+              onClick={() => {
+                if (isSearchOpen) {
+                  setSearchQuery('')
+                }
+                setIsSearchOpen(!isSearchOpen)
+              }}
+              className={`hidden lg:flex p-2 rounded-xl transition-colors outline-none
+                ${isSearchOpen ? 'text-white bg-white/10' : 'text-[rgb(var(--theme-text-muted))] hover:bg-white/5 hover:text-white'}`}
+              title="Search Games"
+            >
+              {isSearchOpen ? <X className="w-5 h-5" /> : <Search className="w-5 h-5" />}
+            </button>
           )}
-        </button>
+
+          <button
+            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            className={`rounded-xl hover:bg-white/5 text-[rgb(var(--theme-text-muted))] hover:text-white transition-colors outline-none ${isSidebarCollapsed ? 'p-1' : 'p-2'}`}
+            title={isSidebarCollapsed ? 'Expand' : 'Collapse'}
+          >
+            {isSidebarCollapsed ? (
+              <ChevronRight className="w-6 h-6 text-[rgb(var(--theme-accent))]" />
+            ) : (
+              <ChevronLeft className="w-5 h-5" />
+            )}
+          </button>
+        </div>
       </div>
 
-      <nav className="flex-1 overflow-y-auto px-3 space-y-2 no-scrollbar">
-        {games.map((g) => (
-          <button
-            key={g.id}
-            onClick={() => {
-              setSelectedGame(g.id)
-              setView('library')
-            }}
-            className={`group w-full flex items-center p-3 rounded-xl text-left god-transition outline-none god-hover
+      {!isSidebarCollapsed && (
+        <div
+          className={`px-6 transition-all duration-300 ease-out ${isSearchOpen ? 'mb-2' : 'mb-0'}`}
+        >
+          <div
+            className={`transition-all duration-300 ease-out overflow-hidden flex items-center
+              ${isSearchOpen ? 'h-10 opacity-100' : 'h-0 opacity-0'}`}
+          >
+            {isSearchOpen && (
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search..."
+                autoFocus
+                className="w-full h-full bg-black/20 border border-white/10 rounded-lg px-3 text-sm text-white focus:border-[rgb(var(--theme-accent))] outline-none placeholder-gray-500 transition-colors"
+              />
+            )}
+          </div>
+        </div>
+      )}
+
+      <nav className="flex-1 overflow-y-auto px-3 space-y-2 mb-2">
+        {games.map((g) => {
+          const isVisible = g.name.toLowerCase().includes(searchQuery.toLowerCase())
+          return (
+            <button
+              key={g.id}
+              onClick={() => {
+                setSelectedGame(g.id)
+                setView('library')
+              }}
+              aria-hidden={!isVisible}
+              tabIndex={isVisible ? 0 : -1}
+              className={`group w-full flex items-center rounded-xl text-left god-transition outline-none
+                ${isVisible ? 'max-h-20 opacity-100 p-3 scale-100' : 'max-h-0 opacity-0 p-0 scale-95 overflow-hidden margin-0 border-0'}
                 ${
                   selectedGame === g.id && view === 'library'
                     ? 'bg-[rgb(var(--theme-accent))] text-white shadow-lg shadow-[rgb(var(--theme-accent))]/20'
                     : 'text-[rgb(var(--theme-text-muted))] hover:bg-white/5 hover:text-white'
                 }`}
-          >
-            <div
-              className={`flex items-center gap-3 w-full ${isSidebarCollapsed ? 'justify-center' : ''}`}
+              style={{
+                marginBottom: isVisible ? '0.5rem' : '0'
+              }}
             >
-              <div className="relative shrink-0">
-                {g.iconUrl ? (
-                  <img
-                    src={g.iconUrl}
-                    draggable={false}
-                    className="w-10 h-10 rounded-lg object-cover bg-black/20 god-transition group-hover:scale-105"
-                  />
-                ) : (
-                  <div
-                    className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm shadow-inner god-transition ${
-                      selectedGame === g.id ? 'bg-white/20' : 'bg-white/5 group-hover:bg-white/10'
-                    }`}
-                  >
-                    {g.name.substring(0, 1)}
-                  </div>
-                )}
-                <div
-                  className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-gray-900 ${
-                    g.detected ? 'bg-emerald-500' : 'bg-rose-500'
-                  }`}
-                />
-              </div>
-              <span
-                className={`${isSidebarCollapsed ? 'hidden' : 'hidden lg:block'} font-medium truncate flex-1`}
+              <div
+                className={`flex items-center gap-3 w-full ${isSidebarCollapsed ? 'justify-center' : ''}`}
               >
-                {g.name}
-              </span>
-            </div>
-          </button>
-        ))}
+                <div className="relative shrink-0">
+                  {g.iconUrl ? (
+                    <img
+                      src={g.iconUrl}
+                      draggable={false}
+                      className="w-10 h-10 rounded-lg object-cover bg-black/20 god-transition group-hover:scale-105"
+                    />
+                  ) : (
+                    <div
+                      className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm shadow-inner god-transition ${
+                        selectedGame === g.id ? 'bg-white/20' : 'bg-white/5 group-hover:bg-white/10'
+                      }`}
+                    >
+                      {g.name.substring(0, 1)}
+                    </div>
+                  )}
+                  <div
+                    className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-gray-900 ${
+                      g.detected ? 'bg-emerald-500' : 'bg-rose-500'
+                    }`}
+                  />
+                </div>
+                <span
+                  className={`${isSidebarCollapsed ? 'hidden' : 'hidden lg:block'} font-medium truncate flex-1 drop-shadow-md`}
+                >
+                  {g.name}
+                </span>
+              </div>
+            </button>
+          )
+        })}
       </nav>
 
       <div className={`space-y-2 ${isSidebarCollapsed ? 'p-2' : 'p-4'}`}>

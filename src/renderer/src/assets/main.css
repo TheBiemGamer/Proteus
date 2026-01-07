@@ -85,20 +85,27 @@ body {
 
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-gray-950;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-gray-800 rounded-full border-2 border-gray-950;
+  background: rgba(var(--theme-accent), 0.2);
+  border-radius: 99px;
+  transition: all 0.3s ease;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-gray-700;
+  background: rgba(var(--theme-accent), 0.5);
+  box-shadow: 0 0 10px rgba(var(--theme-accent), 0.3);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 /* For the license text area which is on a lighter background */
