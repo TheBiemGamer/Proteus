@@ -97,7 +97,7 @@ function App() {
         success: {
           render({ data }: any) {
             // data is the result from checkForUpdates (UpdateCheckResult | null)
-            if (!data) return 'Update check completed (Dev Mode)'
+            if (!data) return 'Update check completed'
             if (data.updateInfo && data.updateInfo.version !== appVersion) {
               return `Update available: ${data.updateInfo.version}`
             }

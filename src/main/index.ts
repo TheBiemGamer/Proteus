@@ -305,8 +305,15 @@ app.whenReady().then(() => {
   ipcMain.handle('check-for-updates', async () => {
     if (!is.dev) {
       console.log('Checking for updates...')
-      const result = await autoUpdater.checkForUpdates()
-      return result
+      try {
+        const result = await autoUpdater.checkForUpdates()
+        return result
+      } catch (error: any) {
+        // If check is already running, we can treat it as "no new result yet" or just suppress the error
+        // to avoid "Error checking for updates" toast while the background check continues.
+        console.warn('Update check warning:', error.message)
+        return null
+      }
     } else {
       console.log('Skipping update check in dev mode')
     }
