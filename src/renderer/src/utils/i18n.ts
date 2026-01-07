@@ -35,6 +35,26 @@ export const translations = {
     nexusApiKeyDesc: 'Used for future features like endorsing mods.',
     developerMode: 'Developer Mode',
     developerModeDesc: 'Enable advanced debugging tools and raw view.',
+    alwaysRunAsAdmin: 'Always Run as Administrator',
+    alwaysRunAsAdminDesc:
+      'Force the application to restart with Administrator privileges on startup.',
+    adminRequired: 'Administrator Permissions Recommended',
+    adminRequiredDesc:
+      'Symlink deployment usually requires Administrator permissions (or Developer Mode) on Windows to function correctly.',
+    adminRequiredDetail:
+      'Without these permissions, creating symlinks may fail. Would you like to restart Proteus as Administrator?',
+    restartAsAdmin: 'Restart as Admin',
+    continueAnyway: 'Continue Anyway',
+    deploymentMethod: 'Deployment Method',
+    deploymentMethodDesc: 'Choose how mod files are linked to the game folder.',
+    methodSymlink: 'Symbolic Link (Recommended)',
+    methodSymlinkDesc:
+      'Creates a reference to the file. Saves space, instant toggling. Requires Developer Mode on Windows.',
+    methodHardlink: 'Hard Link',
+    methodHardlinkDesc:
+      'Creates a directory entry for the file content. Saves space, but deleting the source does not delete the link. No special permissions.',
+    methodCopy: 'Copy',
+    methodCopyDesc: 'Duplicates the file. Uses double disk space. Slowest.',
     save: 'Save',
     initializationRequired: 'Initialization Required',
     initDesc:
@@ -141,6 +161,26 @@ export const translations = {
     nexusApiKeyDesc: 'Gebruikt voor toekomstige functies zoals mods aanbevelen.',
     developerMode: 'Ontwikkelaarsmodus',
     developerModeDesc: 'Schakel geavanceerde debug-tools en ruwe weergave in.',
+    alwaysRunAsAdmin: 'Altijd uitvoeren als beheerder',
+    alwaysRunAsAdminDesc:
+      'Dwing de applicatie om opnieuw te starten met beheerdersrechten bij het opstarten.',
+    adminRequired: 'Beheerdersrechten Aanbevolen',
+    adminRequiredDesc:
+      'Symlink implementatie vereist meestal beheerdersrechten (of Ontwikkelaarsmodus) op Windows om correct te werken.',
+    adminRequiredDetail:
+      'Zonder deze rechten kan het maken van symlinks mislukken. Wil je Proteus opnieuw starten als beheerder?',
+    restartAsAdmin: 'Herstarten als Beheerder',
+    continueAnyway: 'Toch Doorgaan',
+    deploymentMethod: 'Implementatiemethode',
+    deploymentMethodDesc: 'Kies hoe mod-bestanden aan de spelmap worden gekoppeld.',
+    methodSymlink: 'Symbolische Link (Aanbevolen)',
+    methodSymlinkDesc:
+      'Maakt een verwijzing naar het bestand. Bespaart ruimte, direct schakelen. Vereist Ontwikkelaarsmodus op Windows.',
+    methodHardlink: 'Harde Link',
+    methodHardlinkDesc:
+      'Maakt een mapvermelding voor de bestandsinhoud. Bespaart ruimte, maar bron verwijderen verwijdert de link niet. Geen speciale rechten.',
+    methodCopy: 'Kopiëren',
+    methodCopyDesc: 'Dupliceert het bestand. Gebruikt dubbele schijfruimte. Langzaamst.',
     save: 'Opslaan',
     initializationRequired: 'Initialisatie Vereist',
     initDesc:

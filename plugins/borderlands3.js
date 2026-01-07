@@ -1,3 +1,12 @@
+/**
+ * @file borderlands3.js
+ * @description Proteus Mod Manager Plugin for Borderlands 3.
+ * Features:
+ * - .bl3hotfix file injection
+ * - Pak file installation
+ * - SDK Mod support
+ */
+
 module.exports.default = {
   id: 'borderlands3',
   name: 'Borderlands 3',
@@ -306,9 +315,9 @@ module.exports.default = {
         dest = path.join(gamePath, file.relative)
       }
 
-      // Ensure directory exists (implied by copyFile handling in some envs, but safer to try if we could)
-      // sandbox.manager doesn't expose mkdir, but copyFile usually handles it or the manager implementation should.
-      sandbox.manager.copyFile(file.absolute, dest)
+      // Ensure directory exists (implied by symlinkFile handling in some envs, but safer to try if we could)
+      // sandbox.manager doesn't expose mkdir, but symlinkFile usually handles it or the manager implementation should.
+      sandbox.manager.symlinkFile(file.absolute, dest)
     }
     return true
   }

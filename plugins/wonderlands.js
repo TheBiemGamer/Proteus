@@ -1,3 +1,12 @@
+/**
+ * @file wonderlands.js
+ * @description Proteus Mod Manager Plugin for Tiny Tina's Wonderlands.
+ * Features:
+ * - .wlhotfix file injection
+ * - Pak file installation
+ * - SDK Mod support
+ */
+
 module.exports.default = {
   id: 'wonderlands',
   name: "Tiny Tina's Wonderlands",
@@ -307,8 +316,8 @@ module.exports.default = {
         dest = path.join(gamePath, file.relative)
       }
 
-      // Ensure directory exists (implied by copyFile handling in some envs)
-      sandbox.manager.copyFile(file.absolute, dest)
+      // Ensure directory exists (implied by symlinkFile handling in some envs)
+      sandbox.manager.symlinkFile(file.absolute, dest)
     }
     return true
   }

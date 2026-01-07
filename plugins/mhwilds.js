@@ -1,3 +1,11 @@
+/**
+ * @file mhwilds.js
+ * @description Proteus Mod Manager Plugin for Monster Hunter Wilds.
+ * Features:
+ * - Fluffy Mod Manager integration
+ * - Standard Pak/Lua/DLL mod support
+ */
+
 module.exports.default = {
   id: 'mhwilds',
   name: 'Monster Hunter Wilds',

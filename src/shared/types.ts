@@ -59,4 +59,6 @@ export interface IAppSettings {
   nexusApiKey?: string
   developerMode: boolean
   startMaximized: boolean
+  deploymentMethod: 'symlink' | 'hardlink' | 'copy'
+  alwaysRunAsAdmin?: boolean
 }

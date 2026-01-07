@@ -7,9 +7,32 @@
 
 **Proteus** is a universal Mod Manager built with Electron, React, and TypeScript. Like it's namesake, the shape-shifting [Greek god](https://en.wikipedia.org/wiki/Proteus), it adapts its logic and interface to support any game via a powerful, sandboxed plugin system.
 
+## Important: File Handling
+
+Proteus defaults to using **Symbolic Links (Symlinks)** for mod installation whenever possible. This saves disk space and allows for cleaner uninstalls. If symlinks cannot be created (due to permission issues or cross-drive limitations), it will attempt to use **Hard Links** or fallback to **Copying**.
+
+> [!NOTE]
+> **Windows Users**: To use Symlinks for individual files (which is the preferred method), you must either enable **Developer Mode** in Windows Settings or run Proteus as Administrator. Without this, Proteus will fallback to Hard Links (which work fine but require the game and mods to be on the same drive).
+
+## Supported Games
+
+Proteus currently supports the following games via its plugin system:
+
+| Game                        | Support Notes / Requirements                                                                                                                                                                                         |
+| :-------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Borderlands 3**           | Supports `.bl3hotfix` injection, Pak files, and SDK Mods.                                                                                                                                                            |
+| **Monster Hunter: World**   | Requires **[Stracker's Loader](https://www.nexusmods.com/monsterhunterworld/mods/1982)**.                                                                                                                            |
+| **Monster Hunter Wilds**    | Supports **[Fluffy Mod Manager](https://www.nexusmods.com/site/mods/818)**. Detects installed instances of Fluffy.                                                                                                   |
+| **Subnautica**              | **Supports latest Steam version only (Legacy branch not supported).**<br/>Requires **[BepInEx](https://www.nexusmods.com/subnautica/mods/1108)** and **[Nautilus](https://www.nexusmods.com/subnautica/mods/1262)**. |
+| **Tiny Tina's Wonderlands** | Supports `.wlhotfix`, Pak files, and SDK mods.                                                                                                                                                                       |
+
 ## Extension/Plugin Development Guide
 
 Proteus is designed to be agnostic to the game it manages. Support is added via **Plugins** which run in a sandbox.
+
+## Important: File Handling
+
+Proteus defaults to using **Symlinks** for mod installation whenever possible. This saves disk space and allows for cleaner uninstalls. If symlinks cannot be created (due to permission issues or cross-drive limitations), it will attempt to use **Hard Links** or fallback to **Copying**.
 
 ### Plugin Structure
 

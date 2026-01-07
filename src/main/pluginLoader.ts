@@ -30,6 +30,17 @@ export class PluginManager extends EventEmitter {
   private activeModId: string | null = null
   private activeGameId: string | null = null
 
+  private nexusApiKey = ''
+  private deploymentMethod: 'symlink' | 'hardlink' | 'copy' = 'symlink'
+
+  setNexusApiKey(key?: string) {
+    this.nexusApiKey = key || ''
+  }
+
+  setDeploymentMethod(method?: 'symlink' | 'hardlink' | 'copy') {
+    this.deploymentMethod = method || 'symlink'
+  }
+
   private modpackManager: ModpackManager
 
   constructor(appPath: string) {
@@ -122,12 +133,6 @@ export class PluginManager extends EventEmitter {
     }
   }
 
-  private nexusApiKey: string | null = null
-
-  public setNexusApiKey(key: string | undefined) {
-    this.nexusApiKey = key || null
-  }
-
   // --- VM / Sandbox ---
 
   private createSandbox() {
@@ -177,6 +182,32 @@ export class PluginManager extends EventEmitter {
           if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true })
           if (fs.existsSync(dest)) fs.unlinkSync(dest)
 
+          // Respect Deployment Method
+          if (this.deploymentMethod === 'copy') {
+            try {
+              fs.copyFileSync(src, dest)
+              console.log(`[FileInstall] Copied (User Setting): ${path.basename(src)}`)
+              this.registerInstalledFile(dest)
+              return
+            } catch (e) {
+              console.error(`Copy failed: ${e}`)
+              throw e
+            }
+          } else if (this.deploymentMethod === 'hardlink') {
+            try {
+              fs.linkSync(src, dest)
+              console.log(`[FileInstall] Hardlinked (User Setting): ${path.basename(src)}`)
+              this.registerInstalledFile(dest)
+              return
+            } catch (e) {
+              console.warn(`[FileInstall] Hardlink failed (${e}), falling back to copy.`)
+              fs.copyFileSync(src, dest)
+              console.log(`[FileInstall] Copied (Fallback): ${path.basename(src)}`)
+              this.registerInstalledFile(dest)
+              return
+            }
+          }
+
           try {
             const stat = fs.lstatSync(src)
             if (stat.isDirectory()) {
@@ -184,18 +215,34 @@ export class PluginManager extends EventEmitter {
             } else {
               try {
                 fs.symlinkSync(src, dest, 'file')
-              } catch (err) {
+                console.log(`[FileInstall] Symlinked: ${path.basename(src)}`)
+              } catch (err: any) {
+                // Windows requires Admin or Developer Mode for file symlinks.
+                // Fallback to Hardlinks if possible.
+                const isWinPermError =
+                  process.platform === 'win32' && (err.code === 'EPERM' || err.code === 'EACCES')
+
+                if (isWinPermError) {
+                  console.log(
+                    `[FileInstall] Symlink prevented by OS (Dev Mode disabled?). Attempting Hardlink...`
+                  )
+                } else {
+                  console.warn(`[FileInstall] Symlink failed (${err.code}). Attempting Hardlink...`)
+                }
+
                 try {
                   const srcRoot = path.parse(src).root
                   const destRoot = path.parse(dest).root
                   if (srcRoot.toLowerCase() === destRoot.toLowerCase()) {
                     fs.linkSync(src, dest)
+                    console.log(`[FileInstall] Hardlinked: ${path.basename(src)}`)
                   } else {
                     throw new Error('Cross-device link')
                   }
-                } catch {
-                  console.warn(`Link failed for ${dest}, falling back to copy.`)
+                } catch (hardlinkErr: any) {
+                  console.warn(`[FileInstall] Hardlink failed (${hardlinkErr.message}). Copying...`)
                   fs.copyFileSync(src, dest)
+                  console.log(`[FileInstall] Copied (Fallback): ${path.basename(src)}`)
                 }
               }
             }

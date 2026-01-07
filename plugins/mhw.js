@@ -1,3 +1,11 @@
+/**
+ * @file mhw.js
+ * @description Proteus Mod Manager Plugin for Monster Hunter: World.
+ * Features:
+ * - Stracker's Loader validation and detection
+ * - Standard NativePC mod installation
+ */
+
 module.exports.default = {
   id: 'mhw',
   name: 'Monster Hunter: World',

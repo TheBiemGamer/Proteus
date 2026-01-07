@@ -11,7 +11,9 @@ export class SettingsManager {
     language: 'en',
     nexusApiKey: '',
     developerMode: false,
-    startMaximized: false
+    startMaximized: false,
+    deploymentMethod: 'symlink',
+    alwaysRunAsAdmin: false
   }
 
   constructor() {

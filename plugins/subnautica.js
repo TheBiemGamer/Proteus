@@ -1,3 +1,12 @@
+/**
+ * @file subnautica.js
+ * @description Proteus Mod Manager Plugin for Subnautica.
+ * Features:
+ * - Supports latest Steam version (Legacy branch not supported)
+ * - Requirements check for BepInEx and Nautilus
+ * - BepInEx plugin management
+ */
+
 module.exports.default = {
   id: 'subnautica',
   name: 'Subnautica',

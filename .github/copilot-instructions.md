@@ -152,6 +152,7 @@ module.exports.default = {
 
   /**
    * Logic to install a mod from the Staging Area to the Game Folder.
+   * ALWAYS use sandbox.manager.symlinkFile where possible to save space.
    * @param {string} sourcePath - Directory containing the extracted mod files.
    * @param {string} gamePath - The Game Root directory.
    * @param {string} originalZipPath - Original path of the archive.
@@ -169,6 +170,7 @@ module.exports.default = {
         if (sandbox.manager.isDirectory(srcItem)) {
           deployRecursive(srcItem, destItem)
         } else {
+          // ALWAYS PREFER SYMLINKS
           sandbox.manager.symlinkFile(srcItem, destItem)
         }
       })
@@ -224,6 +226,7 @@ You also have access to:
 ## Common Tasks
 
 - **Adding a new game**: Create `plugins/<game_id>.js`. Implement detection and installation logic.
+- **Documentation**: When adding or updating a plugin, **ALWAYS** update the "Supported Games" table in `README.md` with the new game's name, author, version, and specific notes (such as mod loader requirements or version limitations).
 - **Adding a generic feature**:
   1.  Update `src/main/pluginLoader.ts` to support the new hook.
   2.  Update plugins to utilize the hook.

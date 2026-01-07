@@ -1,5 +1,6 @@
 import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'path'
+import { exec, spawn } from 'child_process'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { autoUpdater } from 'electron-updater'
 import icon from '../../resources/icon.png?asset'
@@ -17,7 +18,7 @@ pluginManager.on('download-progress', (data) => {
   }
 })
 
-function createWindow(): void {
+function createWindow(): BrowserWindow {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
     width: 1300,
@@ -49,6 +50,53 @@ function createWindow(): void {
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
+  return mainWindow
+}
+
+function isWindowsAdmin(): Promise<boolean> {
+  return new Promise((resolve) => {
+    exec('net session', (err) => {
+      resolve(!err)
+    })
+  })
+}
+
+async function checkAndPromptForAdmin(method: string, alwaysAdmin: boolean = false): Promise<void> {
+  // If not Windows, skip
+  if (process.platform !== 'win32') return
+
+  // Check if we already have admin
+  const isAdmin = await isWindowsAdmin()
+  if (isAdmin) return
+
+  // Condition 1: Always Run As Admin is ON
+  // Condition 2: Method is Symlink (which needs admin/dev mode)
+  const needsPrivileges = alwaysAdmin || method === 'symlink'
+
+  if (!needsPrivileges) return
+
+  // If forced by "Always Run As Admin", we don't ask, we just restart (or warn in dev)
+  if (alwaysAdmin) {
+    if (is.dev) {
+      // In dev, we can't silently restart easily without losing the terminal session
+      // So we just warn once.
+      console.log('App configured to Always Run as Admin, but in Dev mode.')
+      return
+    }
+    // Production: Restart immediately
+    const exe = app.getPath('exe')
+    spawn('powershell.exe', ['Start-Process', `"${exe}"`, '-Verb', 'RunAs'], { detached: true })
+    app.quit()
+    return
+  }
+
+  // If we are here, it's because of Symlink requirement (and alwaysAdmin is false)
+  // We show the dialog recommendation.
+
+  const mainWindow = BrowserWindow.getAllWindows()[0]
+  if (mainWindow) {
+    mainWindow.webContents.send('request-admin-permission')
+  }
 }
 
 // This method will be called when Electron has finished
@@ -63,6 +111,10 @@ app.whenReady().then(() => {
   // Sync Initial Settings
   const settings = settingsManager.get()
   pluginManager.setNexusApiKey(settings.nexusApiKey)
+  pluginManager.setDeploymentMethod(settings.deploymentMethod)
+
+  // Check for "Always Run as Admin" immediate restart
+  checkAndPromptForAdmin(settings.deploymentMethod, settings.alwaysRunAsAdmin)
 
   pluginManager.autoDetectGames()
 
@@ -140,10 +192,31 @@ app.whenReady().then(() => {
 
   // Settings IPC
   ipcMain.handle('get-settings', () => settingsManager.get())
-  ipcMain.handle('save-settings', (_, settings) => {
+  ipcMain.handle('save-settings', async (_, settings) => {
     const s = settingsManager.set(settings)
     pluginManager.setNexusApiKey(s.nexusApiKey)
+    pluginManager.setDeploymentMethod(s.deploymentMethod)
+    // Only check if we activated "Always Run" or switched to Symlink.
+    // However, if we just switched to Symlink, the renderer will likely trigger the modal flow separately anyway?
+    // Actually, calling checkAndPromptForAdmin here is correct, it will emit the event if needed.
+    await checkAndPromptForAdmin(s.deploymentMethod, s.alwaysRunAsAdmin)
     return s
+  })
+
+  ipcMain.handle('restart-as-admin', () => {
+    if (is.dev) {
+      dialog.showMessageBox({
+        type: 'info',
+        title: 'Developer Mode Detected',
+        message: 'Restarting as Admin is not automatically supported in Dev environment.',
+        detail:
+          'Please stop the process and run "gsudo pnpm dev" or run your terminal as Administrator.'
+      })
+      return
+    }
+    const exe = app.getPath('exe')
+    spawn('powershell.exe', ['Start-Process', `"${exe}"`, '-Verb', 'RunAs'], { detached: true })
+    app.quit()
   })
 
   ipcMain.handle('toggle-mod', async (_, gameId, modId, enabled) => {
@@ -367,7 +440,10 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  createWindow()
+  const mainWindow = createWindow()
+  mainWindow.once('ready-to-show', () => {
+    checkAndPromptForAdmin(settings.deploymentMethod, settings.alwaysRunAsAdmin)
+  })
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the

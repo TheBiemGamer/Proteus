@@ -111,6 +111,98 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 />
               </button>
             </div>
+
+            <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/5">
+              <div>
+                <h4 className="font-medium text-white">{t.alwaysRunAsAdmin}</h4>
+                <p className="text-sm text-gray-500">{t.alwaysRunAsAdminDesc}</p>
+              </div>
+              <button
+                onClick={() =>
+                  handleSaveSettings({ ...settings, alwaysRunAsAdmin: !settings.alwaysRunAsAdmin })
+                }
+                className={`w-12 h-6 rounded-full p-1 god-transition ${settings.alwaysRunAsAdmin ? 'bg-[rgb(var(--theme-accent))]' : 'bg-white/10'}`}
+              >
+                <div
+                  className={`w-4 h-4 bg-white rounded-full god-transition ${settings.alwaysRunAsAdmin ? 'translate-x-6' : 'translate-x-0'}`}
+                />
+              </button>
+            </div>
+
+            <div className="space-y-4 pt-4 border-t border-white/10">
+              <h3 className="text-xl font-semibold text-gray-300">Deployment Method</h3>
+              <p className="text-sm text-gray-400">
+                Choose how mods are installed to the game folder.
+              </p>
+
+              <div className="grid grid-cols-1 gap-4">
+                <button
+                  onClick={() => handleSaveSettings({ ...settings, deploymentMethod: 'symlink' })}
+                  className={`flex flex-col text-left p-4 rounded-xl border god-transition ${
+                    settings.deploymentMethod === 'symlink' || !settings.deploymentMethod
+                      ? 'bg-[rgb(var(--theme-accent))]/10 border-[rgb(var(--theme-accent))]'
+                      : 'bg-white/5 border-white/5 hover:bg-white/10'
+                  }`}
+                >
+                  <span
+                    className={`font-bold ${settings.deploymentMethod === 'symlink' || !settings.deploymentMethod ? 'text-[rgb(var(--theme-accent))]' : 'text-white'}`}
+                  >
+                    Symbolic Link (Recommended)
+                  </span>
+                  <span className="text-xs text-gray-400 mt-1">
+                    Creates a reference to the mod file. Saves disk space and is instant.
+                    <br />
+                    <span className="text-yellow-400">
+                      Windows: Requires Developer Mode or running as Administrator.
+                    </span>
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => handleSaveSettings({ ...settings, deploymentMethod: 'hardlink' })}
+                  className={`flex flex-col text-left p-4 rounded-xl border god-transition ${
+                    settings.deploymentMethod === 'hardlink'
+                      ? 'bg-[rgb(var(--theme-accent))]/10 border-[rgb(var(--theme-accent))]'
+                      : 'bg-white/5 border-white/5 hover:bg-white/10'
+                  }`}
+                >
+                  <span
+                    className={`font-bold ${settings.deploymentMethod === 'hardlink' ? 'text-[rgb(var(--theme-accent))]' : 'text-white'}`}
+                  >
+                    Hard Link
+                  </span>
+                  <span className="text-xs text-gray-400 mt-1">
+                    Creates a direct filesystem link. Saves disk space.
+                    <br />
+                    <span className="text-yellow-400">
+                      Limitation: Mods and Game must be on the same drive.
+                    </span>
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => handleSaveSettings({ ...settings, deploymentMethod: 'copy' })}
+                  className={`flex flex-col text-left p-4 rounded-xl border god-transition ${
+                    settings.deploymentMethod === 'copy'
+                      ? 'bg-[rgb(var(--theme-accent))]/10 border-[rgb(var(--theme-accent))]'
+                      : 'bg-white/5 border-white/5 hover:bg-white/10'
+                  }`}
+                >
+                  <span
+                    className={`font-bold ${settings.deploymentMethod === 'copy' ? 'text-[rgb(var(--theme-accent))]' : 'text-white'}`}
+                  >
+                    Copy Files
+                  </span>
+                  <span className="text-xs text-gray-400 mt-1">
+                    Physically duplicates files. Safest compatibility but uses double disk space.
+                    <br />
+                    <span className="text-gray-500">
+                      Works on all systems without special permissions.
+                    </span>
+                  </span>
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* Integrations Section */}

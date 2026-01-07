@@ -15,6 +15,7 @@ import { PreviewModpackModal } from './components/modals/PreviewModpackModal'
 import { InstallPreviewModal } from './components/modals/InstallPreviewModal'
 import { RedirectModal } from './components/modals/RedirectModal'
 import { ModDetailModal } from './components/modals/ModDetailModal'
+import { AdminPermissionModal } from './components/modals/AdminPermissionModal' // Added
 import { Game, Mod } from './types'
 
 function App() {
@@ -77,8 +78,10 @@ function App() {
   const [view, setView] = useState<'library' | 'settings'>('library')
   const [settings, setSettings] = useState<IAppSettings>({
     language: 'en',
+    deploymentMethod: 'symlink',
     developerMode: false,
     startMaximized: false,
+    alwaysRunAsAdmin: false,
     nexusApiKey: ''
   })
 
@@ -95,6 +98,19 @@ function App() {
     imagePath: ''
   })
   const [previewModpack, setPreviewModpack] = useState<any>(null)
+
+  // Admin Modal
+  const [showAdminModal, setShowAdminModal] = useState(false)
+
+  useEffect(() => {
+    // Listen for admin request
+    const removeAdminListener = window.electron.onRequestAdminPermission(() => {
+      setShowAdminModal(true)
+    })
+    return () => {
+      removeAdminListener()
+    }
+  }, [])
 
   useEffect(() => {
     refreshGames()
@@ -657,6 +673,25 @@ function App() {
           t={t}
         />
       )}
+
+      <AdminPermissionModal
+        isOpen={showAdminModal}
+        onClose={() => setShowAdminModal(false)}
+        t={t}
+        onRestartAsAdmin={async (alwaysAdmin) => {
+          if (alwaysAdmin) {
+            await handleSaveSettings({ ...settings, alwaysRunAsAdmin: true })
+          }
+          window.electron.restartAsAdmin()
+          setShowAdminModal(false)
+        }}
+        onContinue={async (alwaysAdmin) => {
+          if (alwaysAdmin) {
+            await handleSaveSettings({ ...settings, alwaysRunAsAdmin: true })
+          }
+          setShowAdminModal(false)
+        }}
+      />
 
       {detailMod && currentGame && (
         <ModDetailModal

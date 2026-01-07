@@ -28,6 +28,12 @@ const api = {
     ipcRenderer.on('download-progress', subscription)
     return () => ipcRenderer.removeListener('download-progress', subscription)
   },
+  onRequestAdminPermission: (callback: (data: any) => void) => {
+    const subscription = (_event, value) => callback(value)
+    ipcRenderer.on('request-admin-permission', subscription)
+    return () => ipcRenderer.removeListener('request-admin-permission', subscription)
+  },
+  restartAsAdmin: () => ipcRenderer.invoke('restart-as-admin'),
 
   // New: Toggle command
   toggleLoader: (gameId: string, enable: boolean) =>
