@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Plus, Trash2, Power, FileOutput, Check, Package, X } from 'lucide-react'
 
 interface Extension {
@@ -25,14 +25,14 @@ export function ExtensionManager({
   )
   const [importSelection, setImportSelection] = useState<Set<string>>(new Set())
 
-  useEffect(() => {
-    loadExtensions()
-  }, [])
-
-  const loadExtensions = async () => {
+  const loadExtensions = useCallback(async () => {
     const list = await (window as any).electron.getExtensionList()
     setExtensions(list)
-  }
+  }, [])
+
+  useEffect(() => {
+    loadExtensions()
+  }, [loadExtensions])
 
   const handleToggle = async (id: string, enabled: boolean) => {
     await (window as any).electron.toggleExtension(id, enabled)

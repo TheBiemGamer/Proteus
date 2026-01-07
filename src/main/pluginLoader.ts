@@ -478,7 +478,7 @@ export class PluginManager {
 
     await extractArchive(zipPath, modStagingPath)
 
-    let manifest = this.readManifest(gameId)
+    const manifest = this.readManifest(gameId)
 
     let type: 'mod' | 'loader' | string = 'mod'
     let version: string | undefined
@@ -501,7 +501,7 @@ export class PluginManager {
     if (tsMatch) remainder = remainder.substring(0, remainder.length - tsMatch[0].length)
 
     const greedyRegex = /^(.*)-(\d+)-(.+)$/
-    let match = remainder.match(greedyRegex)
+    const match = remainder.match(greedyRegex)
 
     if (match) {
       let potentialName = match[1]
@@ -715,7 +715,7 @@ export class PluginManager {
       fs.rmSync(modStagingPath, { recursive: true, force: true })
     }
 
-    let manifest = this.readManifest(gameId)
+    const manifest = this.readManifest(gameId)
     manifest.mods = manifest.mods.filter((m) => m.id !== modId)
     this.writeManifest(gameId, manifest)
     return true
@@ -830,7 +830,7 @@ export class PluginManager {
     if (tsMatch) remainder = remainder.substring(0, remainder.length - tsMatch[0].length)
 
     const greedyRegex = /^(.*)-(\d+)-(.+)$/
-    let match = remainder.match(greedyRegex)
+    const match = remainder.match(greedyRegex)
     if (match) {
       let potentialName = match[1]
       let potentialId = match[2]
@@ -959,7 +959,7 @@ export class PluginManager {
     }
   }
 
-  public runCommand(pluginId: string, command: string, ...args: any[]) {
+  public async runCommand(pluginId: string, command: string, ...args: any[]) {
     const plugin = this.plugins.get(pluginId)
     if (!plugin) throw new Error(`Plugin ${pluginId} not found`)
 
@@ -981,23 +981,19 @@ export class PluginManager {
     // NOTE: In true async context re-entrance, this global state strategy is dangerous.
     // For now, staying consistent with single-threaded JS node event loop.
 
-    return new Promise(async (resolve, reject) => {
-      try {
-        if (typeof plugin[command] === 'function') {
-          const result = await plugin[command](...args)
-          resolve(result)
-        } else {
-          resolve(null)
-        }
-      } catch (e) {
-        reject(e)
-      } finally {
-        // Restore previous context
-        this.activeGamePath = previousGamePath
-        this.activeGameId = previousGameId
-        this.currentPluginPath = previousPluginPath
+    try {
+      if (typeof plugin[command] === 'function') {
+        const result = await plugin[command](...args)
+        return result
+      } else {
+        return null
       }
-    })
+    } finally {
+      // Restore previous context
+      this.activeGamePath = previousGamePath
+      this.activeGameId = previousGameId
+      this.currentPluginPath = previousPluginPath
+    }
   }
 
   loadPlugins() {
