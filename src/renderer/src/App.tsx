@@ -1,4 +1,4 @@
-import { useState, useEffect, DragEvent } from 'react'
+import { useState, useEffect, DragEvent, ReactNode } from 'react'
 import { ToastContainer, toast } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
 import './assets/main.css'
@@ -115,7 +115,18 @@ function App() {
   useEffect(() => {
     // Only listen for downloaded event, as checking/available are handled by promise
     const d3 = (window as any).electron.onUpdateDownloaded(() => {
-      addToast('Update downloaded. Restart to install?', 'success')
+      addToast(
+        <div>
+          <p>Update downloaded. Restart to install?</p>
+          <button
+            className="mt-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm"
+            onClick={() => (window as any).electron.quitAndInstall()}
+          >
+            Restart Now
+          </button>
+        </div>,
+        'success'
+      )
     })
 
     return () => {
@@ -128,7 +139,10 @@ function App() {
     setSettings(s)
   }
 
-  const addToast = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
+  const addToast = (
+    message: string | ReactNode,
+    type: 'success' | 'error' | 'info' | 'warning' = 'info'
+  ) => {
     toast(message, { type: type as any, theme: 'dark' })
   }
 
