@@ -1,7 +1,7 @@
 module.exports.default = {
   id: 'mhw',
   name: 'Monster Hunter: World',
-  version: '1.0.0',
+  version: '1.0.3',
   author: 'TheBiemGamer',
   modSources: [{ text: 'Nexus Mods', url: 'https://www.nexusmods.com/monsterhunterworld' }],
   executable: 'MonsterHunterWorld.exe',
@@ -9,8 +9,8 @@ module.exports.default = {
   modFileExtensions: ['zip', 'rar', '7z', 'mod'],
   iconUrl: 'https://cdn2.steamgriddb.com/icon_thumb/c95d62c68196b2d0c1c1de8c7eeb6d50.png',
   theme: {
-    accent: '20, 184, 166', // Teal
-    bgStart: '6, 20, 25'
+    accent: '30, 58, 138', // Deep Blue
+    bgStart: '10, 15, 30'
   },
 
   detect: async (candidates) => {

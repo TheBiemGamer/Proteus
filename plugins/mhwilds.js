@@ -1,7 +1,7 @@
 module.exports.default = {
   id: 'mhwilds',
   name: 'Monster Hunter Wilds',
-  version: '1.0.0',
+  version: '1.0.3',
   author: 'TheBiemGamer',
   iconUrl: 'https://cdn2.steamgriddb.com/icon_thumb/a82115443df2caf9fd37795fe824a039.png',
   modSources: [{ text: 'Nexus Mods', url: 'https://www.nexusmods.com/monsterhunterwilds' }],
@@ -9,8 +9,8 @@ module.exports.default = {
   steamAppId: '2246340',
   modFileExtensions: ['zip', 'rar', '7z', 'pak', 'lua', 'exe', 'dll'],
   theme: {
-    accent: '16, 185, 129', // Emerald
-    bgStart: '6, 25, 20'
+    accent: '202, 138, 4', // Dark Gold
+    bgStart: '25, 20, 6'
   },
 
   getToolButtons: async (gamePath) => {

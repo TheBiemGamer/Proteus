@@ -68,6 +68,7 @@ export const GameLibrary: React.FC<GameLibraryProps> = ({
             {currentGame.steamAppId && (
               <a
                 href={`steam://run/${currentGame.steamAppId}`}
+                draggable={false}
                 className="group px-4 py-2 bg-[rgb(var(--theme-accent))] hover:bg-[rgb(var(--theme-accent))]/80 text-white rounded-xl shadow-lg shadow-[rgb(var(--theme-accent))]/20 god-transition god-hover flex items-center space-x-2 no-underline"
               >
                 <Gamepad2 className="w-5 h-5 fill-current" />

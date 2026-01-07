@@ -280,6 +280,12 @@ function App() {
 
   const handleDragLeave = (e: DragEvent) => {
     e.preventDefault()
+
+    // Fix for flickering: check if we are moving to a child element of the drop zone
+    if (e.relatedTarget && e.currentTarget.contains(e.relatedTarget as Node)) {
+      return
+    }
+
     if (dragOver) setDragOver(false)
   }
 

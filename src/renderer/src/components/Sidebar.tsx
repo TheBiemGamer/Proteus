@@ -83,6 +83,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 {g.iconUrl ? (
                   <img
                     src={g.iconUrl}
+                    draggable={false}
                     className="w-10 h-10 rounded-lg object-cover bg-black/20 god-transition group-hover:scale-105"
                   />
                 ) : (
