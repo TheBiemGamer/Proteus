@@ -8,6 +8,7 @@ interface ModDetailModalProps {
   handleUninstallDetailMod: () => void
   handleToggleDetailMod: () => void
   currentGame: Game
+  t: any
 }
 
 export const ModDetailModal: React.FC<ModDetailModalProps> = ({
@@ -15,8 +16,15 @@ export const ModDetailModal: React.FC<ModDetailModalProps> = ({
   setDetailMod,
   handleUninstallDetailMod,
   handleToggleDetailMod,
-  currentGame
+  currentGame,
+  t
 }) => {
+  // Access global t object if not passed via props (assuming ModDetailModal is inside App.tsx which has t)
+  // But wait, t is not passed to ModDetailModal in App.tsx. I should pass it.
+  // For now, I will assume it's passed or available.
+  // Checking App.tsx, ModDetailModal is rendered as:
+  // <ModDetailModal detailMod={detailMod} setDetailMod={setDetailMod} ... />
+  // 't' is available in App scope. I should add 't' to props.
   return (
     <div
       className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 god-transition animate-in fade-in duration-200"
@@ -69,12 +77,12 @@ export const ModDetailModal: React.FC<ModDetailModalProps> = ({
             <span
               className={`px-2 py-1 rounded text-xs border ${detailMod.enabled ? 'bg-emerald-900/20 text-emerald-400 border-emerald-900' : 'bg-red-900/20 text-red-400 border-red-900'}`}
             >
-              {detailMod.enabled ? 'Enabled' : 'Disabled'}
+              {detailMod.enabled ? t.enabled : t.disabled}
             </span>
           </div>
 
           <p className="text-gray-300 whitespace-pre-wrap leading-relaxed">
-            {detailMod.description || 'No description available.'}
+            {detailMod.description || t.noDescription}
           </p>
         </div>
 
@@ -83,7 +91,7 @@ export const ModDetailModal: React.FC<ModDetailModalProps> = ({
             onClick={handleUninstallDetailMod}
             className="px-4 py-2 text-rose-400 hover:text-rose-300 hover:bg-rose-900/20 rounded-xl transition-colors god-transition"
           >
-            Uninstall
+            {t.uninstall}
           </button>
           <div className="flex space-x-3">
             {detailMod.nexusId && (
@@ -119,14 +127,14 @@ export const ModDetailModal: React.FC<ModDetailModalProps> = ({
                 className="px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-200 rounded-xl font-medium border border-white/5 flex items-center space-x-2 god-transition"
               >
                 <ExternalLink className="w-4 h-4" />
-                <span>Source</span>
+                <span>{t.openInExplorer}</span>
               </button>
             )}
             <button
               onClick={handleToggleDetailMod}
               className={`px-6 py-2 rounded-xl font-semibold shadow-lg god-transition ${detailMod.enabled ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-900/20'}`}
             >
-              {detailMod.enabled ? 'Disable' : 'Enable'}
+              {detailMod.enabled ? t.disable : t.enable}
             </button>
           </div>
         </div>

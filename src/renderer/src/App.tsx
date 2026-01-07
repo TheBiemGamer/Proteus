@@ -12,6 +12,7 @@ import { DragDropOverlay } from './components/DragDropOverlay'
 import { ExportModpackModal } from './components/modals/ExportModpackModal'
 import { PreviewModpackModal } from './components/modals/PreviewModpackModal'
 import { InstallPreviewModal } from './components/modals/InstallPreviewModal'
+import { RedirectModal } from './components/modals/RedirectModal'
 import { ModDetailModal } from './components/modals/ModDetailModal'
 import { Game, Mod } from './types'
 
@@ -66,6 +67,12 @@ function App() {
   // UI States
   const [dragOver, setDragOver] = useState(false)
   const [installPreview, setInstallPreview] = useState<{ file: string; meta: any } | null>(null)
+  const [redirectInfo, setRedirectInfo] = useState<{
+    gameId: string
+    gameName: string
+    meta: any
+    filePath: string
+  } | null>(null)
   const [detailMod, setDetailMod] = useState<Mod | null>(null)
 
   // Settings
@@ -235,6 +242,19 @@ function App() {
     const promise = (async () => {
       const result = await (window as any).electron.analyzeFile(currentGame.id, filePath)
 
+      if (result.type === 'redirect') {
+        const otherGame = games.find((g) => g.id === result.gameId)
+        if (otherGame) {
+          setRedirectInfo({
+            gameId: result.gameId,
+            gameName: otherGame.name,
+            meta: result.meta,
+            filePath: filePath
+          })
+          return 'Redirect detected'
+        }
+      }
+
       if (result.type === 'modpack') {
         setPreviewModpack({ ...result.meta, filePath })
         return `Modpack detected: ${result.meta.title}`
@@ -258,6 +278,35 @@ function App() {
       },
       { theme: 'dark' }
     )
+  }
+
+  const handleSwitchGame = () => {
+    if (!redirectInfo) return
+    const { gameId, filePath } = redirectInfo
+
+    setRedirectInfo(null)
+    setSelectedGame(gameId)
+
+    // Wait for state update then re-trigger
+    setTimeout(() => {
+      // Manually invoke with new ID
+      ;(window as any).electron.analyzeFile(gameId, filePath).then((res: any) => {
+        if (res.type === 'modpack') {
+          setPreviewModpack({ ...res.meta, filePath })
+        } else if (res.type === 'mod') {
+          setInstallPreview({ file: filePath, meta: res.meta })
+        }
+      })
+    }, 300)
+  }
+
+  const handleInstallHere = () => {
+    if (!redirectInfo) return
+    const { filePath, meta } = redirectInfo
+
+    // Force install in current game context using the metadata we found
+    setInstallPreview({ file: filePath, meta: meta })
+    setRedirectInfo(null)
   }
 
   const confirmModInstall = async () => {
@@ -597,6 +646,17 @@ function App() {
           confirmModInstall={confirmModInstall}
           isManaging={isManaging}
           settings={settings}
+          t={t}
+        />
+      )}
+
+      {redirectInfo && (
+        <RedirectModal
+          redirectInfo={redirectInfo}
+          setRedirectInfo={setRedirectInfo}
+          handleSwitchGame={handleSwitchGame}
+          handleInstallHere={handleInstallHere}
+          t={t}
         />
       )}
 
@@ -607,6 +667,7 @@ function App() {
           handleUninstallDetailMod={handleUninstallDetailMod}
           handleToggleDetailMod={handleToggleDetailMod}
           currentGame={currentGame}
+          t={t}
         />
       )}
     </div>

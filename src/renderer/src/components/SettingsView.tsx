@@ -62,7 +62,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               : 'text-[rgb(var(--theme-text-muted))] hover:text-white'
           }`}
         >
-          About
+          {t.about}
           {settingsTab === 'about' && (
             <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[rgb(var(--theme-accent))] rounded-t-full shadow-[0_0_10px_rgb(var(--theme-accent))] god-transition animate-in fade-in duration-300" />
           )}
@@ -146,16 +146,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <h3 className="text-3xl font-black bg-gradient-to-r from-[rgb(var(--theme-accent))] to-purple-500 bg-clip-text text-transparent">
               Proteus Mod Manager
             </h3>
-            <p className="text-gray-400">
-              A modular, extensible mod manager for various games, built with Electron and React.
-            </p>
+            <p className="text-gray-400">{t.aboutDesc}</p>
             <div className="flex justify-center space-x-4 text-sm text-gray-500 pt-4">
               <div>
-                <span className="font-semibold text-gray-400">Version</span>
+                <span className="font-semibold text-gray-400">{t.versionLabel}</span>
                 <p>{appVersion}</p>
               </div>
               <div>
-                <span className="font-semibold text-gray-400">Author</span>
+                <span className="font-semibold text-gray-400">{t.author}</span>
                 <p>TheBiemGamer</p>
               </div>
               <div>
@@ -168,7 +166,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 onClick={handleUpdateCheck}
                 className="px-6 py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl font-medium god-transition border border-white/5 hover:border-white/10"
               >
-                Check for Updates
+                {t.checkUpdate}
               </button>
             </div>
           </div>

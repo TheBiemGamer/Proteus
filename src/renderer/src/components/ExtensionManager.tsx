@@ -42,7 +42,9 @@ export function ExtensionManager({
   }
 
   const handleDelete = async (id: string, name: string) => {
-    if (confirm(`Delete extension "${name}"?`)) {
+    if (
+      confirm(t.confirmDeleteExtension?.replace('{name}', name) || `Delete extension "${name}"?`)
+    ) {
       await (window as any).electron.deleteExtension(id)
       loadExtensions()
       onChange?.()
@@ -145,9 +147,9 @@ export function ExtensionManager({
                     )}
                   </div>
                 </th>
-                <th className="p-4 font-semibold">{t.modpackTitle}</th>
-                <th className="p-4 w-32 font-semibold">Author</th>
-                <th className="p-4 w-24 font-semibold">Version</th>
+                <th className="p-4 font-semibold">{t.modName}</th>
+                <th className="p-4 w-32 font-semibold">{t.author}</th>
+                <th className="p-4 w-24 font-semibold">{t.version}</th>
                 <th className="p-4 w-32 font-semibold">Status</th>
                 <th className="p-4 w-24 text-right font-semibold">Actions</th>
               </tr>

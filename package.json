@@ -1,6 +1,6 @@
 {
   "name": "proteus-mod-manager",
-  "version": "0.2.9",
+  "version": "0.3.0",
   "description": "Proteus - A highly modular mod manager written in React and TypeScript",
   "main": "./out/main/index.js",
   "author": "thebiemgamer",
@@ -31,6 +31,7 @@
     "7zip-bin": "^5.2.0",
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
+    "@headlessui/react": "^2.2.9",
     "adm-zip": "^0.5.16",
     "axios": "^1.13.2",
     "electron-updater": "^6.7.3",

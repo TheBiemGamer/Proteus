@@ -18,6 +18,7 @@ You are working on **Proteus Mod Manager (PMM)**, a modular, extensible mod mana
 - **Package Manager**: Use `pnpm`.
 - **Type Checking**: ALWAYS run `pnpm run typecheck` to validate changes. The project is split into Node (Main) and Web (Renderer) contexts.
 - **Starting Dev**: `pnpm run dev` starts the Electron dev server.
+- **Localization**: ALL user-facing text must be localized using the `src/renderer/src/utils/i18n.ts` file. Supports **English (en)** and **Dutch (nl)**. Always update both languages when adding new keys.
 
 ## Code Conventions
 

@@ -515,52 +515,51 @@ export class PluginManager extends EventEmitter {
           const filename = path.basename(filePath)
           const greedyRegex = /^(.*)-(\d+)-(.+)$/
           const match = filename.match(greedyRegex)
-          
+
           if (match) {
             const potentialId = match[2]
-            const found = md5Result.find(r => {
-               const id = (r.mod && r.mod.mod_id) || r.mod_id
-               return id && id.toString() === potentialId
+            const found = md5Result.find((r) => {
+              const id = (r.mod && r.mod.mod_id) || r.mod_id
+              return id && id.toString() === potentialId
             })
             if (found) {
-                foundId = (found.mod && found.mod.mod_id) || found.mod_id
+              foundId = (found.mod && found.mod.mod_id) || found.mod_id
             }
           }
-          
+
           // Improved Fallback Strategy:
           // If the regex match failed (or logic above didn't find the specific mod),
           // we should look for the "main" mod if possible, or try to avoid "Modpacks/Guides".
           // In the user's example, ID 335 is a "Guide/Bundle", while ID 72 is the original mod.
           // Heuristic: Prefer results where the file_name closely matches the zip name?
           // Or check category? (Guide categories usually differ).
-          
+
           if (!foundId && md5Result.length > 0) {
             // Priority 1: Exact File Name Match (if info available)
             // The Nexus MD5 API returns `file_details.file_name`.
-            const exactFileMatch = md5Result.find(r => 
-              r.file_details && r.file_details.file_name === filename
+            const exactFileMatch = md5Result.find(
+              (r) => r.file_details && r.file_details.file_name === filename
             )
-            
-            if (exactFileMatch) {
-               foundId = (exactFileMatch.mod && exactFileMatch.mod.mod_id) || exactFileMatch.mod_id
-            } else {
-               // Priority 2: Avoid "Guide" or "Modpack" in the name if alternatives exist
-               // (This is a heuristic, but often valid for duplicated files)
-               const betterMatch = md5Result.find(r => {
-                 const name = (r.mod && r.mod.name) || ''
-                 return !name.toLowerCase().includes('guide') && !name.toLowerCase().includes('pack')
-               })
 
-               if (betterMatch) {
-                 foundId = (betterMatch.mod && betterMatch.mod.mod_id) || betterMatch.mod_id
-               } else {
-                 // Default to first
-                 const first = md5Result[0]
-                 foundId = (first.mod && first.mod.mod_id) || first.mod_id
-               }
+            if (exactFileMatch) {
+              foundId = (exactFileMatch.mod && exactFileMatch.mod.mod_id) || exactFileMatch.mod_id
+            } else {
+              // Priority 2: Avoid "Guide" or "Modpack" in the name if alternatives exist
+              // (This is a heuristic, but often valid for duplicated files)
+              const betterMatch = md5Result.find((r) => {
+                const name = (r.mod && r.mod.name) || ''
+                return !name.toLowerCase().includes('guide') && !name.toLowerCase().includes('pack')
+              })
+
+              if (betterMatch) {
+                foundId = (betterMatch.mod && betterMatch.mod.mod_id) || betterMatch.mod_id
+              } else {
+                // Default to first
+                const first = md5Result[0]
+                foundId = (first.mod && first.mod.mod_id) || first.mod_id
+              }
             }
           }
-
         } else if (md5Result) {
           // Single result
           if (md5Result.mod && md5Result.mod.mod_id) foundId = md5Result.mod.mod_id
@@ -574,11 +573,41 @@ export class PluginManager extends EventEmitter {
           console.log(`[HashCheck] Match found! ID: ${nexusId}`)
         } else {
           hashCheckStatus = 'not-found'
-          // CRITICAL: If hash check returns not-found, we specifically assume this file
-          // does NOT match any known mod for this game.
-          // Unless the user explicitly provided an ID (providedOptions), we should NOT guess one via Regex.
+          console.log(`[HashCheck] No match found or Invalid Structure.`)
+
+          // CROSS-GAME CHECK
+          // If the hash wasn't found for the current game, check other managed games.
+          for (const [otherId] of this.plugins.entries()) {
+            if (otherId === gameId || !this.gamePaths[otherId]) continue // Skip current or unmanaged
+
+            try {
+              const otherSlug = this.getNexusSlug(otherId)
+              if (otherSlug === checkSlug) continue
+
+              const otherMatch = await validateModByHash(this.nexusApiKey, otherSlug, filePath)
+              // If match is found in another game
+              if (otherMatch && (Array.isArray(otherMatch) ? otherMatch.length > 0 : true)) {
+                // Pick best match to show in preview
+                let match = Array.isArray(otherMatch) ? otherMatch[0] : otherMatch
+                // Simplified extraction - similar to internal logic but we just need display info
+                let foundMeta = {
+                  name: (match.mod && match.mod.name) || match.name || 'Unknown Mod',
+                  imageUrl: (match.mod && match.mod.picture_url) || match.picture_url,
+                  summary: (match.mod && match.mod.summary) || match.summary,
+                  nexusId: (match.mod && match.mod.mod_id) || match.mod_id,
+                  author: (match.mod && match.mod.author) || match.author
+                }
+
+                throw new Error(`REDIRECT_GAME:${otherId}|||${JSON.stringify(foundMeta)}`)
+              }
+            } catch (e: any) {
+              if (e.message.startsWith('REDIRECT_GAME')) throw e
+              // Ignore other errors (api failure etc) during cross-check
+            }
+          }
         }
-      } catch (e) {
+      } catch (e: any) {
+        if (e.message.startsWith('REDIRECT_GAME') || e.message.includes('cancelled')) throw e
         hashCheckStatus = 'error'
         console.warn('Hash check failed', e)
       }
@@ -931,21 +960,36 @@ export class PluginManager extends EventEmitter {
       }
     }
 
-    const { displayName, version, nexusId, author, description, imageUrl, sourceUrl } =
-      await this.resolveModMetadata(gameId, filePath)
+    try {
+      const { displayName, version, nexusId, author, description, imageUrl, sourceUrl } =
+        await this.resolveModMetadata(gameId, filePath)
 
-    return {
-      type: 'mod',
-      meta: {
-        name: displayName,
-        version,
-        nexusId,
-        author,
-        description,
-        imageUrl,
-        path: filePath,
-        sourceUrl
+      return {
+        type: 'mod',
+        meta: {
+          name: displayName,
+          version,
+          nexusId,
+          author,
+          description,
+          imageUrl,
+          path: filePath,
+          sourceUrl
+        }
       }
+    } catch (e: any) {
+      if (e.message.startsWith('REDIRECT_GAME:')) {
+        const parts = e.message.split('|||')
+        const mainPart = parts[0].replace('REDIRECT_GAME:', '')
+        const metaPart = parts[1]
+        let meta = null
+        try {
+          meta = JSON.parse(metaPart)
+        } catch {}
+
+        return { type: 'redirect', gameId: mainPart, meta }
+      }
+      throw e
     }
   }
 
