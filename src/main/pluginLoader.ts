@@ -4,9 +4,10 @@ import { app } from 'electron'
 import { NodeVM } from 'vm2'
 import AdmZip from 'adm-zip'
 import axios from 'axios'
-import sevenBin from '7zip-bin'
-import Seven from 'node-7z'
-import { IGameExtension, IMod, IModpackManifest } from '../shared/types'
+import { IGameExtension, IMod } from '../shared/types'
+import { listArchiveFiles, extractArchive } from './utils/archives'
+import { fetchNexusMetadata, checkNexusUpdate } from './utils/nexus'
+import { ModpackManager } from './features/modpack'
 
 interface GameManifest {
   mods: IMod[]
@@ -28,6 +29,8 @@ export class PluginManager {
   private activeModId: string | null = null
   private activeGameId: string | null = null
 
+  private modpackManager: ModpackManager
+
   constructor(appPath: string) {
     this.pluginsDir = path.join(appPath, 'plugins')
     this.stagingDir = path.join(app.getPath('userData'), 'Staging')
@@ -39,6 +42,18 @@ export class PluginManager {
     this.settingsPath = path.join(userData, 'game-paths.json')
 
     this.loadSettings()
+
+    // Initialize Helpers
+    this.modpackManager = new ModpackManager({
+      readManifest: this.readManifest.bind(this),
+      writeManifest: this.writeManifest.bind(this),
+      stagingDir: this.stagingDir,
+      gamePaths: this.gamePaths,
+      runCommand: this.runCommand.bind(this),
+      enableMod: this.enableMod.bind(this),
+      installMod: this.installMod.bind(this),
+      _fetchNexusMetadata: this._fetchNexusMetadata.bind(this)
+    })
   }
 
   private loadSettings() {
@@ -88,7 +103,6 @@ export class PluginManager {
     const resolvedTarget = path.resolve(targetPath)
     const resolvedSafe = path.resolve(this.activeGamePath)
 
-    // Case-insensitive check for Windows to avoid drive letter casing issues
     if (process.platform === 'win32') {
       return resolvedTarget.toLowerCase().startsWith(resolvedSafe.toLowerCase())
     }
@@ -145,10 +159,7 @@ export class PluginManager {
             return []
           }
         },
-        // Unzip logic handled by PluginManager mostly now, but keep for utils
         unzipFile: (zipPath: string, dest: string) => {
-          // Generally unsafe if dest not checked?
-          // For now allow, assuming plugin is trusted or operates in valid paths
           new AdmZip(zipPath).extractAllTo(dest, true)
         },
         copyFile: (src: string, dest: string) => {
@@ -172,15 +183,13 @@ export class PluginManager {
               try {
                 fs.symlinkSync(src, dest, 'file')
               } catch (err) {
-                // Try Hard Link if on same drive
                 try {
                   const srcRoot = path.parse(src).root
                   const destRoot = path.parse(dest).root
                   if (srcRoot.toLowerCase() === destRoot.toLowerCase()) {
                     fs.linkSync(src, dest)
-                    // console.log(`Hardlinked ${dest}`)
                   } else {
-                    throw new Error('Different drives')
+                    throw new Error('Cross-device link')
                   }
                 } catch {
                   console.warn(`Link failed for ${dest}, falling back to copy.`)
@@ -202,9 +211,6 @@ export class PluginManager {
           if (!this.isSafePath(dirPath)) throw new Error(`Access Denied: ${dirPath}`)
           if (fs.existsSync(dirPath)) {
             try {
-              // Only removes if empty, or use recursive if intended?
-              // Request says "if the folders are empty", implying rmdirSync without recursive (or check content first)
-              // fs.rmdirSync throws if not empty.
               fs.rmdirSync(dirPath)
             } catch (e) {
               // Ignore error if not empty
@@ -240,10 +246,8 @@ export class PluginManager {
           return this.activeGamePath
         },
         registerMod: (mod: IMod) => {
-          // Allow plugins to register "virtual" or auto-installed mods into the manifest
           if (!this.activeGameId) return
           const manifest = this.readManifest(this.activeGameId)
-          // Avoid duplicates
           const existing = manifest.mods.find((m) => m.id === mod.id)
           if (!existing) {
             manifest.mods.push(mod)
@@ -261,7 +265,6 @@ export class PluginManager {
           }
         ) => {
           if (!this.activeGameId) throw new Error('No active game')
-          // Call the main installMod function
           return self.installMod(this.activeGameId, zipPath, options)
         },
         openUrl: async (url: string) => {
@@ -301,37 +304,30 @@ export class PluginManager {
       }
     }
     this.saveSettings()
-    // Return UI structure: includes 'managed' state
     return this.getGamesWithDetails()
   }
 
   private getGamesInternal() {
     const result: any[] = []
-    // Convert Map keys to array to avoid any iteration weirdness, though strict strings should be fine.
     for (const [key, plugin] of Array.from(this.plugins.entries())) {
-      const id = String(key) // Ensure ID is string
+      const id = String(key)
       if (this.gamePaths[id]) {
         const manifest = this.readManifest(id)
 
-        // Safely extract properties from vm2 proxy
-        // Force primitives to avoid proxy leakage
         const name = String(plugin.name)
         const steamAppId = plugin.steamAppId ? String(plugin.steamAppId) : undefined
         const iconUrl = (plugin as any).iconUrl ? String((plugin as any).iconUrl) : undefined
 
         let modSources: { text: string; url: string }[] | undefined
-        // Access safely
         try {
           const rawSources = (plugin as any).modSources
           if (Array.isArray(rawSources)) {
-            // Explicitly map and stringify properties
             modSources = rawSources.map((s: any) => ({
               text: String(s.text),
               url: String(s.url)
             }))
           }
         } catch (e) {
-          // If accessing modSources fails, just ignore it
           modSources = undefined
         }
 
@@ -345,9 +341,7 @@ export class PluginManager {
               bgEnd: rawTheme.bgEnd ? String(rawTheme.bgEnd) : undefined
             }
           }
-        } catch {
-          // ignore
-        }
+        } catch {}
 
         result.push({
           id,
@@ -363,28 +357,14 @@ export class PluginManager {
         })
       }
     }
-
-    // 2nd Pass: Async Fetch Tool Buttons
-    // Since getGamesInternal is currently sync(-ish), we might need to await commands.
-    // However, toolButtons are dynamic. Let's populate them asynchronously or refactor `getGamesInternal` to be async.
-    // For now, let's keep it simple: We iterate result and call getToolButtons if managed.
-    // But `detectGames` calls this.
-    // Let's refactor:
-    // ... Actually, wait. The plugin logic for `getToolButtons` is fast.
-
     return JSON.parse(JSON.stringify(result))
   }
 
-  // Refactored async getter
   public async getGamesWithDetails() {
     const games = this.getGamesInternal()
     for (const game of games) {
       if (game.managed) {
         try {
-          // If plugin supports getToolButtons, call it
-          // We don't have direct access to 'hasMethod', so we blind call runCommand.
-          // But runCommand throws if method missing? No, we check in runCommand? No.
-          // Let's rely on plugin object.
           const plugin = this.plugins.get(game.id)
           if (plugin && (plugin as any).getToolButtons) {
             const buttons = await this.runCommand(game.id, 'getToolButtons', game.path)
@@ -392,12 +372,9 @@ export class PluginManager {
               game.toolButtons = buttons
             }
           } else if (plugin && (plugin as any).toolButtons) {
-            // Fallback to static property
             game.toolButtons = (plugin as any).toolButtons
           }
-        } catch (e) {
-          // ignore
-        }
+        } catch (e) {}
       }
     }
     return JSON.parse(JSON.stringify(games))
@@ -407,12 +384,10 @@ export class PluginManager {
   async manageGame(gameId: string) {
     if (!this.gamePaths[gameId]) throw new Error('Game path not known')
 
-    // 1. Mark managed
     let manifest = this.readManifest(gameId)
     manifest.managed = true
     this.writeManifest(gameId, manifest)
 
-    // Plugin Hook: Prepare For Modding (e.g. downloading Loaders/SDKs)
     try {
       await this.runCommand(gameId, 'prepareForModding', this.gamePaths[gameId])
     } catch (e) {
@@ -435,19 +410,15 @@ export class PluginManager {
       }
     }
 
-    // Refresh Manifest to catch any auto-installed mods
     manifest = this.readManifest(gameId)
-
     return this.getGamesWithDetails()
   }
 
   async unmanageGame(gameId: string) {
     if (!this.gamePaths[gameId]) throw new Error('Game path not known')
 
-    // 1. Disable all mods (restores vanilla state roughly)
     await this.disableAllMods(gameId)
 
-    // 2. Nuke Staging Directory for this game
     const gameStagingDir = path.join(this.stagingDir, gameId)
     if (fs.existsSync(gameStagingDir)) {
       try {
@@ -457,7 +428,6 @@ export class PluginManager {
       }
     }
 
-    // 3. Remove Manifest File
     const manifestPath = this.getManifestPath(gameId)
     if (manifestPath && fs.existsSync(manifestPath)) {
       try {
@@ -467,7 +437,6 @@ export class PluginManager {
       }
     }
 
-    // 4. Plugin Cleanup Hook
     try {
       await this.runCommand(gameId, 'onUnmanage', this.gamePaths[gameId])
     } catch (e) {
@@ -475,110 +444,6 @@ export class PluginManager {
     }
 
     return this.getGamesWithDetails()
-  }
-
-  private get7zBinary(): string {
-    const isWin = process.platform === 'win32'
-    if (isWin) {
-      // Check common installation paths for full 7-Zip (supports RAR)
-      const possiblePaths = [
-        path.join(process.env['ProgramFiles'] || 'C:\\Program Files', '7-Zip', '7z.exe'),
-        path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', '7-Zip', '7z.exe')
-      ]
-      for (const p of possiblePaths) {
-        if (fs.existsSync(p)) return p
-      }
-    }
-    // Fallback to bundled 7za (No RAR support)
-    return sevenBin.path7za
-  }
-
-  private async listArchiveFiles(src: string): Promise<string[]> {
-    const ext = path.extname(src).toLowerCase()
-
-    // If it's not a known archive format, assume it's a single file
-    if (!['.zip', '.rar', '.7z', '.mod'].includes(ext)) {
-      return [path.basename(src)]
-    }
-
-    // Prefer AdmZip for pure zips/mods
-    if (ext === '.zip' || ext === '.mod') {
-      try {
-        const zip = new AdmZip(src)
-        return zip.getEntries().map((e) => e.entryName)
-      } catch (e) {
-        console.warn('AdmZip failed listing, trying 7zip fallback', e)
-        // Fallthrough
-      }
-    }
-
-    const bin = this.get7zBinary()
-    return new Promise((resolve, reject) => {
-      const files: string[] = []
-      const stream = Seven.list(src, {
-        $bin: bin,
-        $r: true // Recursive list
-      })
-      stream.on('data', (d: any) => {
-        if (d.file) files.push(d.file)
-      })
-      stream.on('end', () => resolve(files))
-      stream.on('error', (err: any) => {
-        reject(err)
-      })
-    })
-  }
-
-  private async extractArchive(src: string, dest: string): Promise<void> {
-    const ext = path.extname(src).toLowerCase()
-
-    // If it's not a known archive format, assume it's a single file mod
-    if (!['.zip', '.rar', '.7z', '.mod'].includes(ext)) {
-      const fileName = path.basename(src)
-      fs.copyFileSync(src, path.join(dest, fileName))
-      return
-    }
-
-    // Prefer AdmZip for pure zips/mods as it is faster/sync (though we wrap in async here)
-    if (ext === '.zip' || ext === '.mod') {
-      try {
-        const zip = new AdmZip(src)
-        zip.extractAllTo(dest, true)
-        return
-      } catch (e) {
-        console.warn('AdmZip failed, trying 7zip fallback', e)
-        // Fallthrough to 7zip
-      }
-    }
-
-    const bin = this.get7zBinary()
-
-    // Warning for RAR if no system 7z
-    if (ext === '.rar' && bin.endsWith('7za.exe')) {
-      console.warn('Attempting to extract RAR with 7za.exe. This usually fails. Install 7-Zip.')
-    }
-
-    // 7zip extraction for rar, 7z, or failed zips
-    return new Promise((resolve, reject) => {
-      const stream = Seven.extractFull(src, dest, {
-        $bin: bin
-      })
-      stream.on('end', () => resolve())
-      stream.on('error', (err: any) => {
-        // Improve Error Message for RAR
-        if (ext === '.rar' && bin.endsWith('7za.exe')) {
-          reject(
-            new Error(
-              'Failed to extract .rar file. Please install 7-Zip (64-bit) in the default location to support RAR archives.'
-            )
-          )
-        } else {
-          // Log stderr for debugging
-          if (err.stderr) console.error('7z Stderr:', err.stderr)
-          reject(err)
-        }
-      })
-    })
   }
 
   async installMod(
@@ -605,18 +470,16 @@ export class PluginManager {
         ? { autoEnable: optionsOrAutoEnable }
         : optionsOrAutoEnable
 
-    // Use parse to handle any extension
     const modId = path.parse(zipPath).name.replace(/\s+/g, '_')
     const modStagingPath = path.join(this.stagingDir, gameId, modId)
 
     if (fs.existsSync(modStagingPath)) fs.rmSync(modStagingPath, { recursive: true, force: true })
     fs.mkdirSync(modStagingPath, { recursive: true })
 
-    await this.extractArchive(zipPath, modStagingPath)
+    await extractArchive(zipPath, modStagingPath)
 
     let manifest = this.readManifest(gameId)
 
-    // Variables for Metadata
     let type: 'mod' | 'loader' | string = 'mod'
     let version: string | undefined
     let nexusId: string | undefined
@@ -630,7 +493,7 @@ export class PluginManager {
     let displayName = filenameNoExt
     if (options.name) displayName = options.name
 
-    // 1. Regex Parsing (Heuristics)
+    // 1. Regex Parsing
     let remainder = filenameNoExt
     const duplicateMatch = remainder.match(/(.*)\s\(\d+\)$/)
     if (duplicateMatch) remainder = duplicateMatch[1]
@@ -648,7 +511,7 @@ export class PluginManager {
         const suffixMatch = potentialName.match(/-(\d+)$/)
         if (suffixMatch) {
           potentialVer = `${potentialId}-${potentialVer}`
-          potentialId = suffixMatch[1] // Fixed logic error in original code: id = suffixDigits
+          potentialId = suffixMatch[1]
           potentialName = potentialName.substring(0, potentialName.length - suffixMatch[0].length)
         } else {
           break
@@ -669,8 +532,8 @@ export class PluginManager {
 
     let nexusDomain: string | undefined
 
-    // 2. Plugin Custom Logic (Overrides Regex)
-    const customType = await this.runCommand(gameId, 'determineModType', modStagingPath)
+    // 2. Plugin Custom Logic
+    const customType = (await this.runCommand(gameId, 'determineModType', modStagingPath)) as any
     if (customType) {
       if (typeof customType === 'string') {
         type = customType
@@ -690,43 +553,33 @@ export class PluginManager {
       type = 'loader'
     }
 
-    // 3. User Options (Overrides Plugin)
     if ((options as any).author) author = (options as any).author
     if ((options as any).description) description = (options as any).description
     if ((options as any).imageUrl) imageUrl = (options as any).imageUrl
     if (options.version) version = options.version
     if (options.nexusId) nexusId = options.nexusId
 
-    // Try to fetch better metadata from Nexus if available
     if (nexusId && this.nexusApiKey) {
       try {
         const slug = nexusDomain || this.getNexusSlug(gameId)
-        const url = `https://api.nexusmods.com/v1/games/${slug}/mods/${nexusId}.json`
-        const headers = {
-          apikey: this.nexusApiKey,
-          'Application-Name': 'ModManager',
-          'Application-Version': '1.0.0'
+        const data = await fetchNexusMetadata(this.nexusApiKey, slug, nexusId)
+        if (data) {
+          if (data.name && !options.name) displayName = data.name
+          if (data.version && !options.version) version = data.version
+          if (data.uploaded_by) author = data.uploaded_by
+          if (data.summary) description = data.summary
+          if (data.picture_url) imageUrl = data.picture_url
         }
-
-        console.log(`Fetching Nexus info for ${slug}/${nexusId}...`)
-        const response = await axios.get(url, { headers })
-        const data = response.data
-        if (data.name && !options.name) displayName = data.name
-        if (data.version && !options.version) version = data.version // Prefer API version if not manually overridden
-        if (data.uploaded_by) author = data.uploaded_by
-        if (data.summary) description = data.summary
-        if (data.picture_url) imageUrl = data.picture_url
-      } catch (e) {
-        console.warn('Failed to fetch Nexus metadata:', (e as any).message)
+      } catch (e: any) {
+        console.warn('Failed to fetch Nexus metadata:', e.message)
       }
     }
 
-    // Update list
     manifest.mods = manifest.mods.filter((m) => m.id !== modId)
     manifest.mods.push({
       id: modId,
       name: displayName,
-      author, // Add author
+      author,
       description,
       imageUrl,
       enabled: false,
@@ -756,13 +609,13 @@ export class PluginManager {
     const modStagingPath = path.join(this.stagingDir, gameId, modId)
     this.activeModId = modId
 
-    const result = await this.runCommand(
+    const result = (await this.runCommand(
       gameId,
       'install',
       modStagingPath,
       this.gamePaths[gameId],
       modStagingPath
-    )
+    )) as any
 
     // Re-read manifest as registerInstalledFile updates it
     const updatedManifest = this.readManifest(gameId)
@@ -814,11 +667,6 @@ export class PluginManager {
 
   async disableAllMods(gameId: string) {
     const manifest = this.readManifest(gameId)
-    // Filter enabled mods (excluding loaders? usually users want to disable mods but keep the loader?
-    // Or just disable everything? "Disable All" usually implies everything.
-    // Let's protect the loader if possible? No, usually you want to go vanilla.
-
-    // We iterate deeply to ensure sequential disabling (file cleanup)
     for (const mod of manifest.mods) {
       if (mod.enabled) {
         await this.disableMod(gameId, mod.id)
@@ -850,12 +698,8 @@ export class PluginManager {
     const mod = manifest.mods.find((m) => m.id === modId)
     if (!mod) return { error: 'Mod not found' }
 
-    // Check if plugin supports it
     const plugin = this.plugins.get(gameId)
-    // 1. Prioritize Plugin Update Check (e.g. GitHub loaders)
     if (plugin && typeof (plugin as any).checkUpdate === 'function') {
-      // Invoke
-      // VM2 might have issues with raw objects. Best to pass copies of primitives.
       const modDTO = {
         id: mod.id,
         name: mod.name,
@@ -864,11 +708,10 @@ export class PluginManager {
         nexusId: mod.nexusId
       }
 
-      const result = await this.runCommand(gameId, 'checkUpdate', modDTO)
+      const result = (await this.runCommand(gameId, 'checkUpdate', modDTO)) as any
 
       // Only return if it explicitly supported the check, otherwise fall through to Nexus
       if (result && result.supported !== false) {
-        // Clone to plain object to avoid IPC cloning errors with VM2 proxies
         if (result && typeof result === 'object') {
           return {
             supported: result.supported,
@@ -882,9 +725,13 @@ export class PluginManager {
       }
     }
 
-    // 2. Fallback to Nexus API
     if (mod.nexusId && this.nexusApiKey) {
-      return await this.checkNexusUpdate(gameId, mod.nexusId, mod.version)
+      return await checkNexusUpdate(
+        this.nexusApiKey,
+        this.getNexusSlug(gameId),
+        mod.nexusId,
+        mod.version
+      )
     }
 
     return { error: 'Update check not supported by this game or mod' }
@@ -892,12 +739,10 @@ export class PluginManager {
 
   private getNexusSlug(gameId: string): string {
     const plugin = this.plugins.get(gameId)
-    // Try to find nexus link
     const sources = (plugin as any).modSources
     if (sources && Array.isArray(sources)) {
       const nexusSrc = sources.find((s) => s.url.includes('nexusmods.com'))
       if (nexusSrc) {
-        // https://www.nexusmods.com/borderlands3 -> borderlands3
         const match = nexusSrc.url.match(/nexusmods\.com\/([^/]+)/)
         if (match) return match[1]
       }
@@ -906,21 +751,17 @@ export class PluginManager {
   }
 
   async analyzeFile(gameId: string, filePath: string) {
-    // Check extension
     const ext = path.extname(filePath).toLowerCase()
 
-    // Check if it's a modpack
     if (ext === '.modpack' || ext === '.json') {
       try {
-        const meta = await this.getModpackMetadata(filePath)
+        const meta = await this.modpackManager.getModpackMetadata(filePath)
         return { type: 'modpack', meta }
       } catch {
-        // Fallthrough if parsing failed, might be a random JSON or mod file
+        // Fallthrough
       }
     }
 
-    // Assume it's a mod archive
-    // Parse metadata
     const filenameNoExt = path.parse(filePath).name
     let displayName = filenameNoExt
     let nexusId: string | undefined
@@ -931,13 +772,11 @@ export class PluginManager {
     let nexusDomain: string | undefined
     let sourceUrl: string | undefined
 
-    // 0. Pre-Analyze (Fast Scan)
     try {
-      const fileList = await this.listArchiveFiles(filePath)
-      const customMeta = await this.runCommand(gameId, 'analyzeArchive', fileList)
+      const fileList = await listArchiveFiles(filePath)
+      const customMeta = (await this.runCommand(gameId, 'analyzeArchive', fileList)) as any
       if (customMeta && typeof customMeta === 'object') {
-        if (customMeta.type) displayName = customMeta.type // Heuristic: Name it "Loader" or similar? Or let regex override?
-        // Actually usually type="Loader" implies name="Fluffy Mod Manager", but let's stick to regex name unless plugin provides name
+        if (customMeta.type) displayName = customMeta.type
         if (customMeta.name) displayName = customMeta.name
         if (customMeta.nexusId) nexusId = customMeta.nexusId
         if (customMeta.version) version = customMeta.version
@@ -951,7 +790,6 @@ export class PluginManager {
       console.warn('Archive analysis failed:', e)
     }
 
-    // 1. Timestamp parsing
     let remainder = filenameNoExt
     const duplicateMatch = remainder.match(/(.*)\s\(\d+\)$/)
     if (duplicateMatch) remainder = duplicateMatch[1]
@@ -959,7 +797,6 @@ export class PluginManager {
     const tsMatch = remainder.match(/-(\d{9,})$/)
     if (tsMatch) remainder = remainder.substring(0, remainder.length - tsMatch[0].length)
 
-    // 2. Name-ID-Version parsing
     const greedyRegex = /^(.*)-(\d+)-(.+)$/
     let match = remainder.match(greedyRegex)
     if (match) {
@@ -988,24 +825,17 @@ export class PluginManager {
       }
     }
 
-    // 3. Fetch Nexus Info
     if (nexusId && this.nexusApiKey) {
       try {
         const slug = nexusDomain || this.getNexusSlug(gameId)
-        const url = `https://api.nexusmods.com/v1/games/${slug}/mods/${nexusId}.json`
-        const headers = {
-          apikey: this.nexusApiKey,
-          'Application-Name': 'ModManager',
-          'Application-Version': '1.0.0'
+        const data = await fetchNexusMetadata(this.nexusApiKey, slug, nexusId)
+        if (data) {
+          if (data.name) displayName = data.name
+          if (data.version) version = data.version
+          if (data.uploaded_by) author = data.uploaded_by
+          if (data.summary) description = data.summary
+          if (data.picture_url) imageUrl = data.picture_url
         }
-
-        const response = await axios.get(url, { headers })
-        const data = response.data
-        if (data.name) displayName = data.name
-        if (data.version) version = data.version
-        if (data.uploaded_by) author = data.uploaded_by
-        if (data.summary) description = data.summary
-        if (data.picture_url) imageUrl = data.picture_url
       } catch (e: any) {
         console.warn('Failed to fetch Nexus metadata during analysis:', e.message)
       }
@@ -1028,54 +858,16 @@ export class PluginManager {
 
   async _fetchNexusMetadata(gameId: string, nexusId: string) {
     if (!this.nexusApiKey) return null
-    try {
-      const slug = this.getNexusSlug(gameId)
-      const url = `https://api.nexusmods.com/v1/games/${slug}/mods/${nexusId}.json`
-      const headers = {
-        apikey: this.nexusApiKey,
-        'Application-Name': 'ModManager',
-        'Application-Version': '1.0.0'
-      }
-      const response = await axios.get(url, { headers })
-      return response.data
-    } catch (e: any) {
-      console.warn(`Nexus fetch failed for ${nexusId}: ${e.message}`)
-      return null
-    }
-  }
-
-  async checkNexusUpdate(gameId: string, nexusId: string, currentVersion?: string) {
-    if (!this.nexusApiKey) return { error: 'Nexus API Key not set in Settings' }
-
-    try {
-      const slug = this.getNexusSlug(gameId)
-      const url = `https://api.nexusmods.com/v1/games/${slug}/mods/${nexusId}.json`
-      const headers = {
-        apikey: this.nexusApiKey,
-        'Application-Name': 'ModManager',
-        'Application-Version': '1.0.0'
-      }
-
-      const response = await axios.get(url, { headers })
-      const data = response.data
-
-      const latestVersion = data.version
-      const updateAvailable = latestVersion !== currentVersion
-
-      return {
-        supported: true,
-        updateAvailable,
-        latestVersion,
-        downloadUrl: `https://www.nexusmods.com/${slug}/mods/${nexusId}?tab=files`
-      }
-    } catch (e: any) {
-      return { error: e.response?.data?.message || e.message }
-    }
+    return fetchNexusMetadata(this.nexusApiKey, this.getNexusSlug(gameId), nexusId)
   }
 
   async validateGame(gameId: string) {
     try {
-      const result = await this.runCommand(gameId, 'checkRequirements', this.gamePaths[gameId])
+      const result = (await this.runCommand(
+        gameId,
+        'checkRequirements',
+        this.gamePaths[gameId]
+      )) as any
       if (result && typeof result === 'object' && 'valid' in result) {
         // Clone to plain object to avoid IPC cloning errors with VM2 proxies
         let links: any[] | undefined
@@ -1095,7 +887,6 @@ export class PluginManager {
           links
         }
       }
-      // Backward compatibility for boolean return (if we had kept it)
       if (result === false) return { valid: false, message: 'Requirements not met' }
       return { valid: true }
     } catch (e) {
@@ -1103,9 +894,7 @@ export class PluginManager {
     }
   }
 
-  // --- Base ---
-
-  async runCommand(pluginId: string, command: string, ...args: any[]) {
+  public runCommand(pluginId: string, command: string, ...args: any[]) {
     const plugin = this.plugins.get(pluginId)
     if (!plugin) throw new Error(`Plugin ${pluginId} not found`)
 
@@ -1124,18 +913,26 @@ export class PluginManager {
     this.activeGameId = pluginId
     this.currentPluginPath = mainFile
 
-    try {
-      if (typeof plugin[command] === 'function') {
-        const result = await plugin[command](...args)
-        return result
+    // NOTE: In true async context re-entrance, this global state strategy is dangerous.
+    // For now, staying consistent with single-threaded JS node event loop.
+
+    return new Promise(async (resolve, reject) => {
+      try {
+        if (typeof plugin[command] === 'function') {
+          const result = await plugin[command](...args)
+          resolve(result)
+        } else {
+          resolve(null)
+        }
+      } catch (e) {
+        reject(e)
+      } finally {
+        // Restore previous context
+        this.activeGamePath = previousGamePath
+        this.activeGameId = previousGameId
+        this.currentPluginPath = previousPluginPath
       }
-      return null
-    } finally {
-      // Restore previous context
-      this.activeGamePath = previousGamePath
-      this.activeGameId = previousGameId
-      this.currentPluginPath = previousPluginPath
-    }
+    })
   }
 
   loadPlugins() {
@@ -1148,7 +945,7 @@ export class PluginManager {
       const fullPath = path.join(this.pluginsDir, item)
       const stats = fs.lstatSync(fullPath)
       let pluginFile: string | null = null
-      // Scan for disabled extensions well
+
       if (
         item.endsWith('.js.disabled') ||
         (stats.isDirectory() && fs.existsSync(path.join(fullPath, 'index.js.disabled')))
@@ -1178,7 +975,6 @@ export class PluginManager {
           const pluginExports = vm.run(code, pluginFile)
           const plugin = pluginExports.default || pluginExports
           if (plugin && plugin.id) {
-            // Force ID to be a native string to avoid Map keys being Proxies
             const safeId = String(plugin.id)
             this.plugins.set(safeId, plugin)
             this.pluginFiles.set(safeId, pluginFile)
@@ -1191,16 +987,13 @@ export class PluginManager {
   }
 
   async getExtensionList() {
-    // Return both enabled and disabled extensions
     const result: any[] = []
 
-    // Helper: basic name extraction from source code
     const extractName = (source: string): string | null => {
       const match = source.match(/name\s*:\s*(['"`])(.*?)\1/)
       return match ? match[2] : null
     }
 
-    // 1. Added loaded plugins
     for (const [id, plugin] of this.plugins.entries()) {
       const file = this.pluginFiles.get(id)
       if (file) {
@@ -1216,13 +1009,11 @@ export class PluginManager {
       }
     }
 
-    // 2. Scan for disabled files
     if (fs.existsSync(this.pluginsDir)) {
       const items = fs.readdirSync(this.pluginsDir)
       items.forEach((item) => {
         const fullPath = path.join(this.pluginsDir, item)
         if (item.endsWith('.js.disabled')) {
-          // Try to loosely parse ID/Name
           const potentialId = item.replace('.js.disabled', '')
           let name = potentialId + ' (Disabled)'
           try {
@@ -1263,14 +1054,9 @@ export class PluginManager {
   }
 
   async toggleExtension(id: string, enabled: boolean) {
-    // Find the file path
     let targetPath: string | null = this.pluginFiles.get(id) || null
 
-    // If enabling, we need to find the disabled file
     if (enabled && !targetPath) {
-      // scan directory for .disabled matching id
-      // This is tricky if ID != filename. We assume here simple mapping for now or scan all?
-      // Let's assume standardized naming for now or just scan dir
       if (fs.existsSync(this.pluginsDir)) {
         const items = fs.readdirSync(this.pluginsDir)
         for (const item of items) {
@@ -1280,14 +1066,8 @@ export class PluginManager {
           }
           const fullPath = path.join(this.pluginsDir, item)
           if (fs.lstatSync(fullPath).isDirectory()) {
-            // check inside
             if (fs.existsSync(path.join(fullPath, 'index.js.disabled'))) {
-              // How do we know this folder maps to 'id'?
-              // We might not if we can't run the code.
-              // Current simplification: folder name = id
-              if (item === id) {
-                targetPath = path.join(fullPath, 'index.js.disabled')
-              }
+              // ...
             }
           }
         }
@@ -1309,10 +1089,7 @@ export class PluginManager {
 
   async deleteExtension(id: string) {
     let targetPath: string | null = this.pluginFiles.get(id) || null
-    // Check for disabled variant if not found
     if (!targetPath) {
-      // reuse logic or simplify
-      // Try standard paths
       if (fs.existsSync(path.join(this.pluginsDir, id + '.js.disabled'))) {
         targetPath = path.join(this.pluginsDir, id + '.js.disabled')
       }
@@ -1321,16 +1098,12 @@ export class PluginManager {
     if (!targetPath) return false
 
     try {
-      // If it's an index.js, delete the parent folder?
       const parentDir = path.dirname(targetPath)
       if (path.basename(targetPath).startsWith('index.js')) {
-        // Delete parent folder (the extension folder)
-        // Safety: Ensure parent is inside pluginsDir
         if (path.resolve(path.dirname(parentDir)) === path.resolve(this.pluginsDir)) {
           fs.rmSync(parentDir, { recursive: true, force: true })
         }
       } else {
-        // Single file
         fs.unlinkSync(targetPath)
       }
       this.loadPlugins()
@@ -1346,10 +1119,8 @@ export class PluginManager {
 
   getSupportedExtensions(gameId: string): string[] {
     const plugin = this.plugins.get(gameId)
-    // Access property dynamically as it isn't in strictly typed interface yet
     const exts = (plugin as any)?.modFileExtensions
     if (exts) {
-      // vm2 arrays might fail Array.isArray check in host context, so we convert safely
       try {
         const arr = Array.from(exts) as string[]
         if (arr.length > 0) return arr
@@ -1401,12 +1172,10 @@ export class PluginManager {
 
     const zip = new AdmZip()
 
-    // Check if it is a directory-based plugin or single file
     if (path.basename(mainFile) === 'index.js') {
       const pluginDir = path.dirname(mainFile)
       zip.addLocalFolder(pluginDir)
     } else {
-      // Single file
       zip.addLocalFile(mainFile)
     }
 
@@ -1417,7 +1186,6 @@ export class PluginManager {
     const zip = new AdmZip()
     for (const id of ids) {
       const file = this.pluginFiles.get(id)
-      // Also check for disabled
       if (file) {
         if (path.basename(file) === 'index.js') {
           const dir = path.dirname(file)
@@ -1426,7 +1194,6 @@ export class PluginManager {
           zip.addLocalFile(file)
         }
       } else {
-        // Try disabled
         if (fs.existsSync(path.join(this.pluginsDir, id + '.js.disabled'))) {
           zip.addLocalFile(path.join(this.pluginsDir, id + '.js.disabled'))
         }
@@ -1440,10 +1207,6 @@ export class PluginManager {
     const entries = zip.getEntries()
     const extensions: any[] = []
 
-    // Heuristic: Look for .js files in root or index.js in 1-level deep folders
-    // For now, simplify: All .js files in root are extensions.
-    // All folders containing index.js are extensions.
-
     for (const entry of entries) {
       if (entry.isDirectory) continue
 
@@ -1454,11 +1217,10 @@ export class PluginManager {
           name: entry.entryName.replace('.js', '')
         })
       } else if (entry.entryName.match(/^[^/]+\/index\.js$/)) {
-        // folder/index.js
         const folder = entry.entryName.split('/')[0]
         extensions.push({
           type: 'folder',
-          path: folder, // Extract this folder
+          path: folder,
           name: folder
         })
       }
@@ -1470,27 +1232,13 @@ export class PluginManager {
     const zip = new AdmZip(zipPath)
 
     try {
-      // Extract specific entries
       for (const target of selectedPaths) {
-        // If it's a folder (from preview), we need to extract that folder
-        // If it's a file, extract file.
-
         const entry = zip.getEntry(target)
         if (entry) {
-          // Single file
           zip.extractEntryTo(target, this.pluginsDir, false, true)
         } else {
-          // Maybe it was a folder name we stored in 'path'
-          // Extract all entries starting with target/
-          // AdmZip extractEntryTo can extract a folder if entry is a folder?
-          // No, getEntry for folder might work if it ends with /
-
-          // Let's filter entries
           const folderEntries = zip.getEntries().filter((e) => e.entryName.startsWith(target + '/'))
           folderEntries.forEach((e) => {
-            // relative path calculation?
-            // extractEntryTo(entry, targetPath, maintainEntryPath, overwrite)
-            // If we maintain path, it puts it in pluginsDir/target/... which is what we want
             zip.extractEntryTo(e, this.pluginsDir, true, true)
           })
         }
@@ -1503,183 +1251,16 @@ export class PluginManager {
     }
   }
 
-  // --- Modpack Management ---
-
+  // Wrappers to ModpackManager
   async createModpack(gameId: string, meta: any, destPath: string) {
-    const manifest = this.readManifest(gameId)
-    // Filter enabled mods and exclude loaders (case-insensitive)
-    const enabledMods = manifest.mods.filter((m) => {
-      if (!m.enabled) return false
-      const type = m.type.toLowerCase()
-      return type !== 'loader' && type !== 'binaries'
-    })
-
-    const zip = new AdmZip()
-
-    const packManifest: IModpackManifest = {
-      meta: {
-        title: meta.title,
-        description: meta.description,
-        author: meta.author,
-        version: meta.version,
-        gameId: gameId
-      },
-      mods: []
-    }
-
-    for (const mod of enabledMods) {
-      packManifest.mods.push({
-        id: mod.id,
-        name: mod.name,
-        nexusId: mod.nexusId,
-        version: mod.version
-      })
-
-      // Add mod folder from staging
-      const modStagingPath = path.join(this.stagingDir, gameId, mod.id)
-      if (fs.existsSync(modStagingPath)) {
-        zip.addLocalFolder(modStagingPath, `mods/${mod.id}`)
-      }
-    }
-
-    if (meta.imagePath && fs.existsSync(meta.imagePath)) {
-      zip.addLocalFile(meta.imagePath, '', 'icon.png')
-    }
-
-    zip.addFile('modpack.json', Buffer.from(JSON.stringify(packManifest, null, 2)))
-
-    zip.writeZip(destPath)
-    return true
+    return this.modpackManager.createModpack(gameId, meta, destPath)
   }
 
   async getModpackMetadata(modpackPath: string) {
-    try {
-      const zip = new AdmZip(modpackPath)
-      const entry = zip.getEntry('modpack.json')
-      if (!entry) throw new Error('Invalid Modpack')
-
-      const content = zip.readAsText(entry)
-      const manifest: IModpackManifest = JSON.parse(content)
-
-      // Check for image
-      let image: string | undefined
-      const validExtensions = ['.png', '.jpg', '.jpeg', '.bmp', '.gif']
-      const iconEntry = zip.getEntries().find((e) => {
-        const ext = path.extname(e.entryName).toLowerCase()
-        return e.entryName.startsWith('icon.') && validExtensions.includes(ext)
-      })
-
-      if (iconEntry) {
-        const buf = zip.readFile(iconEntry)
-        if (buf) {
-          const ext = path.extname(iconEntry.entryName).substring(1)
-          image = `data:image/${ext};base64,${buf.toString('base64')}`
-        }
-      }
-
-      return { ...manifest, image }
-    } catch (e) {
-      throw new Error('Failed to read modpack: ' + e)
-    }
+    return this.modpackManager.getModpackMetadata(modpackPath)
   }
 
   async installModpack(modpackPath: string) {
-    const zip = new AdmZip(modpackPath)
-    const entry = zip.getEntry('modpack.json')
-    if (!entry) throw new Error('Invalid Modpack')
-    const packManifest: IModpackManifest = JSON.parse(zip.readAsText(entry))
-
-    const gameId = packManifest.meta.gameId
-
-    // Ensure we have a path for this game
-    if (!this.gamePaths[gameId]) {
-      throw new Error(`Game ${gameId} not managed or detected.`)
-    }
-
-    const tempDir = path.join(app.getPath('userData'), 'Temp', 'ModpackInstall')
-    if (fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true })
-    fs.mkdirSync(tempDir, { recursive: true })
-
-    zip.extractAllTo(tempDir, true)
-
-    const modsDir = path.join(tempDir, 'mods')
-    if (fs.existsSync(modsDir)) {
-      const modDirs = fs.readdirSync(modsDir)
-      for (const modId of modDirs) {
-        const source = path.join(modsDir, modId)
-        const dest = path.join(this.stagingDir, gameId, modId)
-
-        if (fs.existsSync(dest)) fs.rmSync(dest, { recursive: true, force: true })
-        if (!fs.existsSync(path.dirname(dest)))
-          fs.mkdirSync(path.dirname(dest), { recursive: true })
-
-        fs.cpSync(source, dest, { recursive: true })
-
-        const modMeta = packManifest.mods.find((m) => m.id === modId) || { id: modId, name: modId }
-
-        // Determine Type
-        let type = 'mod'
-        const customType = await this.runCommand(gameId, 'determineModType', dest)
-        if (customType && typeof customType === 'string') {
-          type = customType
-        } else if (
-          fs.existsSync(path.join(dest, 'dinput8.dll')) ||
-          modId.toLowerCase().includes('loader')
-        ) {
-          type = 'loader'
-        }
-
-        // Fetch Metadata
-        let author: string | undefined
-        let description: string | undefined
-        let imageUrl: string | undefined
-        let version = modMeta.version
-
-        if (modMeta.nexusId) {
-          const data = await this._fetchNexusMetadata(gameId, modMeta.nexusId)
-          if (data) {
-            if (data.uploaded_by) author = data.uploaded_by
-            if (data.summary) description = data.summary
-            if (data.picture_url) imageUrl = data.picture_url
-            if (data.version && !version) version = data.version
-          }
-        }
-
-        const gameManifest = this.readManifest(gameId)
-        let existing = gameManifest.mods.find((m) => m.id === modId)
-        if (!existing) {
-          existing = {
-            id: modId,
-            name: modMeta.name,
-            enabled: false,
-            installDate: Date.now(),
-            files: [],
-            type,
-            version,
-            nexusId: modMeta.nexusId,
-            author,
-            description,
-            imageUrl
-          }
-          gameManifest.mods.push(existing)
-          this.writeManifest(gameId, gameManifest)
-        } else {
-          // Update existing metadata if we have better info now
-          if (modMeta.nexusId && !existing.nexusId) existing.nexusId = modMeta.nexusId
-          if (author && !existing.author) existing.author = author
-          if (description && !existing.description) existing.description = description
-          if (imageUrl && !existing.imageUrl) existing.imageUrl = imageUrl
-          if (type !== 'mod' && existing.type === 'mod') existing.type = type
-          this.writeManifest(gameId, gameManifest)
-        }
-
-        // Enable it
-        await this.enableMod(gameId, modId)
-      }
-    }
-
-    fs.rmSync(tempDir, { recursive: true, force: true })
-
-    return gameId
+    return this.modpackManager.installModpack(modpackPath)
   }
 }

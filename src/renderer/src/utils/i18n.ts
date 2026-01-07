@@ -59,7 +59,6 @@ export const translations = {
     disable: 'Disable',
     delete: 'Delete',
     selectExtensionsToExport: 'Select Extensions to Export',
-
     modInstalled: 'Mod installed successfully',
     modEnabled: 'Mod enabled',
     modDisabled: 'Mod disabled',
@@ -73,10 +72,8 @@ export const translations = {
     modpackExported: 'Modpack exported',
     modpackInstalled: 'Modpack installed',
     modpackInstallFailed: 'Modpack install failed',
-
     gameManaged: 'Game setup complete!',
     gameUnmanaged: 'Game unmanaged',
-
     checkingUpdates: 'Checking for updates...',
     updateAvailable: 'Update available',
     upToDate: 'Mod is up to date',
@@ -141,7 +138,6 @@ export const translations = {
     disable: 'Uitschakelen',
     delete: 'Verwijderen',
     selectExtensionsToExport: 'Selecteer Extensies om te Exporteren',
-
     modInstalled: 'Mod succesvol geïnstalleerd',
     modEnabled: 'Mod ingeschakeld',
     modDisabled: 'Mod uitgeschakeld',
@@ -155,10 +151,8 @@ export const translations = {
     modpackExported: 'Modpack geëxporteerd',
     modpackInstalled: 'Modpack geïnstalleerd',
     modpackInstallFailed: 'Modpack installatie mislukt',
-
     gameManaged: 'Spel setup voltooid!',
     gameUnmanaged: 'Spel niet meer beheerd',
-
     checkingUpdates: 'Controleren op updates...',
     updateAvailable: 'Update beschikbaar',
     upToDate: 'Mod is up-to-date',
