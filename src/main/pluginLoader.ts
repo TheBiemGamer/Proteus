@@ -4,9 +4,10 @@ import { app } from 'electron'
 import { NodeVM } from 'vm2'
 import AdmZip from 'adm-zip'
 import axios from 'axios'
+import { EventEmitter } from 'events'
 import { IGameExtension, IMod } from '../shared/types'
 import { listArchiveFiles, extractArchive } from './utils/archives'
-import { fetchNexusMetadata, checkNexusUpdate } from './utils/nexus'
+import { fetchNexusMetadata, checkNexusUpdate, validateModByHash } from './utils/nexus'
 import { ModpackManager } from './features/modpack'
 
 interface GameManifest {
@@ -14,7 +15,7 @@ interface GameManifest {
   managed: boolean
 }
 
-export class PluginManager {
+export class PluginManager extends EventEmitter {
   private plugins: Map<string, IGameExtension> = new Map()
   private pluginFiles: Map<string, string> = new Map()
   private pluginsDir: string
@@ -32,6 +33,7 @@ export class PluginManager {
   private modpackManager: ModpackManager
 
   constructor(appPath: string) {
+    super()
     this.pluginsDir = path.join(appPath, 'plugins')
     this.stagingDir = path.join(app.getPath('userData'), 'Staging')
 
@@ -230,7 +232,19 @@ export class PluginManager {
           if (!this.isSafePath(dest)) throw new Error(`Access Denied: ${dest}`)
           try {
             const response = await axios({ url, method: 'GET', responseType: 'stream' })
+            const totalLength = response.headers['content-length']
+            let downloaded = 0
+
             const writer = fs.createWriteStream(dest)
+
+            response.data.on('data', (chunk) => {
+              downloaded += chunk.length
+              if (totalLength) {
+                const progress = Math.round((downloaded / parseInt(totalLength)) * 100)
+                this.emit('download-progress', { url, progress })
+              }
+            })
+
             response.data.pipe(writer)
             return new Promise<void>((resolve, reject) => {
               writer.on('finish', () => resolve())
@@ -446,6 +460,264 @@ export class PluginManager {
     return this.getGamesWithDetails()
   }
 
+  private async resolveModMetadata(
+    gameId: string,
+    filePath: string,
+    providedOptions?: {
+      name?: string
+      nexusId?: string
+      version?: string
+      author?: string
+      description?: string
+      imageUrl?: string
+    }
+  ): Promise<{
+    displayName: string
+    version?: string
+    nexusId?: string
+    author: string
+    description?: string
+    imageUrl?: string
+    sourceUrl?: string
+    type: string
+    nexusDomain?: string
+    note?: string
+  }> {
+    const filenameNoExt = path.parse(filePath).name
+    let displayName = filenameNoExt
+    if (providedOptions?.name) displayName = providedOptions.name
+
+    let nexusId: string | undefined = providedOptions?.nexusId
+    let version: string | undefined = providedOptions?.version
+    let author: string = providedOptions?.author || 'Unknown'
+    let description: string | undefined = providedOptions?.description
+    let imageUrl: string | undefined = providedOptions?.imageUrl
+    let sourceUrl: string | undefined
+    let nexusDomain: string | undefined
+    let type = 'mod'
+    let note: string | undefined
+
+    // 1. Hash Check (Primary Identification Method)
+    let hashMatchFound = false
+    let hashCheckStatus: 'match' | 'not-found' | 'error' | 'skipped' = 'skipped'
+
+    if (this.nexusApiKey) {
+      try {
+        const checkSlug = this.getNexusSlug(gameId)
+        console.log(`[HashCheck] Checking ${path.basename(filePath)} against ${checkSlug}`)
+        const md5Result = await validateModByHash(this.nexusApiKey, checkSlug, filePath)
+
+        let foundId: string | number | undefined
+
+        // Handling multiple results (e.g. reused core files in different mods)
+        if (Array.isArray(md5Result)) {
+          // If multiple matches, use regex on filename to disambiguate
+          const filename = path.basename(filePath)
+          const greedyRegex = /^(.*)-(\d+)-(.+)$/
+          const match = filename.match(greedyRegex)
+
+          if (match) {
+            const potentialId = match[2]
+            const found = md5Result.find((r) => {
+              const id = (r.mod && r.mod.mod_id) || r.mod_id
+              return id && id.toString() === potentialId
+            })
+            if (found) {
+              foundId = (found.mod && found.mod.mod_id) || found.mod_id
+            }
+          }
+
+          // Improved Fallback Strategy:
+          // If the regex match failed (or logic above didn't find the specific mod),
+          // we should look for the "main" mod if possible, or try to avoid "Modpacks/Guides".
+          // In the user's example, ID 335 is a "Guide/Bundle", while ID 72 is the original mod.
+          // Heuristic: Prefer results where the file_name closely matches the zip name?
+          // Or check category? (Guide categories usually differ).
+
+          if (!foundId && md5Result.length > 0) {
+            // Priority 1: Exact File Name Match (if info available)
+            // The Nexus MD5 API returns `file_details.file_name`.
+            const exactFileMatch = md5Result.find(
+              (r) => r.file_details && r.file_details.file_name === filename
+            )
+
+            if (exactFileMatch) {
+              foundId = (exactFileMatch.mod && exactFileMatch.mod.mod_id) || exactFileMatch.mod_id
+            } else {
+              // Priority 2: Avoid "Guide" or "Modpack" in the name if alternatives exist
+              // (This is a heuristic, but often valid for duplicated files)
+              const betterMatch = md5Result.find((r) => {
+                const name = (r.mod && r.mod.name) || ''
+                return !name.toLowerCase().includes('guide') && !name.toLowerCase().includes('pack')
+              })
+
+              if (betterMatch) {
+                foundId = (betterMatch.mod && betterMatch.mod.mod_id) || betterMatch.mod_id
+              } else {
+                // Default to first
+                const first = md5Result[0]
+                foundId = (first.mod && first.mod.mod_id) || first.mod_id
+              }
+            }
+          }
+        } else if (md5Result) {
+          // Single result
+          if (md5Result.mod && md5Result.mod.mod_id) foundId = md5Result.mod.mod_id
+          else if (md5Result.mod_id) foundId = md5Result.mod_id
+        }
+
+        if (foundId) {
+          nexusId = foundId.toString()
+          hashMatchFound = true
+          hashCheckStatus = 'match'
+          console.log(`[HashCheck] Match found! ID: ${nexusId}`)
+        } else {
+          hashCheckStatus = 'not-found'
+          console.log(`[HashCheck] No match found or Invalid Structure.`)
+
+          // CROSS-GAME CHECK
+          // If the hash wasn't found for the current game, check other managed games.
+          for (const [otherId] of this.plugins.entries()) {
+            if (otherId === gameId || !this.gamePaths[otherId]) continue // Skip current or unmanaged
+
+            try {
+              const otherSlug = this.getNexusSlug(otherId)
+              if (otherSlug === checkSlug) continue
+
+              const otherMatch = await validateModByHash(this.nexusApiKey, otherSlug, filePath)
+              // If match is found in another game
+              if (otherMatch && (Array.isArray(otherMatch) ? otherMatch.length > 0 : true)) {
+                // Pick best match to show in preview
+                let match = Array.isArray(otherMatch) ? otherMatch[0] : otherMatch
+                // Simplified extraction - similar to internal logic but we just need display info
+                let foundMeta = {
+                  name: (match.mod && match.mod.name) || match.name || 'Unknown Mod',
+                  imageUrl: (match.mod && match.mod.picture_url) || match.picture_url,
+                  summary: (match.mod && match.mod.summary) || match.summary,
+                  nexusId: (match.mod && match.mod.mod_id) || match.mod_id,
+                  author: (match.mod && match.mod.author) || match.author
+                }
+
+                throw new Error(`REDIRECT_GAME:${otherId}|||${JSON.stringify(foundMeta)}`)
+              }
+            } catch (e: any) {
+              if (e.message.startsWith('REDIRECT_GAME')) throw e
+              // Ignore other errors (api failure etc) during cross-check
+            }
+          }
+        }
+      } catch (e: any) {
+        if (e.message.startsWith('REDIRECT_GAME') || e.message.includes('cancelled')) throw e
+        hashCheckStatus = 'error'
+        console.warn('Hash check failed', e)
+      }
+    } else {
+      hashCheckStatus = 'skipped'
+    }
+
+    // 2. Plugin Custom Analysis (Type Detection & Metadata)
+    try {
+      const fileList = await listArchiveFiles(filePath)
+      const customMeta = (await this.runCommand(gameId, 'analyzeArchive', fileList)) as any
+      if (customMeta && typeof customMeta === 'object') {
+        if (customMeta.type) type = customMeta.type
+
+        // Plugin specific overrides
+        if (customMeta.nexusDomain) nexusDomain = customMeta.nexusDomain
+        if (customMeta.sourceUrl) sourceUrl = customMeta.sourceUrl
+        if (customMeta.note) note = customMeta.note
+
+        // Only use Plugin metadata assignments if we didn't identify via hash (or if duplicate check)
+        // Actually, plugin might know better about 'Tool' types even if hash matched
+        if (!hashMatchFound) {
+          if (customMeta.nexusId) nexusId = customMeta.nexusId
+          if (customMeta.version) version = customMeta.version
+          if (customMeta.name) displayName = customMeta.name
+          if (customMeta.author) author = customMeta.author
+          if (customMeta.description) description = customMeta.description
+          if (customMeta.imageUrl) imageUrl = customMeta.imageUrl
+        }
+      } else if (
+        fileList.some(
+          (f) => f.toLowerCase() === 'dinput8.dll' || f.toLowerCase().endsWith('dinput8.dll')
+        ) ||
+        filePath.toLowerCase().includes('loader')
+      ) {
+        type = 'loader'
+      }
+    } catch (e) {
+      console.warn('Plugin analysis failed', e)
+    }
+
+    // 3. Regex Fallback (Only for Name/Version parsing, NOT for ID if Hash Check Failed)
+    // If Hash Check was 'not-found', we DO NOT guess ID from filename to prevent cross-game errors.
+    // If Hash Check was 'skipped' or 'error', we MAY guess ID as fallback.
+    const allowRegexId = !nexusId && (hashCheckStatus === 'skipped' || hashCheckStatus === 'error')
+
+    let remainder = filenameNoExt
+    const duplicateMatch = remainder.match(/(.*)\s\(\d+\)$/)
+    if (duplicateMatch) remainder = duplicateMatch[1]
+    const tsMatch = remainder.match(/-(\d{9,})$/)
+    if (tsMatch) remainder = remainder.substring(0, remainder.length - tsMatch[0].length)
+
+    // Minimal Regex for Name/Version info
+    const greedyRegex = /^(.*)-(\d+)-(.+)$/
+    const match = remainder.match(greedyRegex)
+
+    if (match) {
+      const potentialName = match[1]
+      // If we allow regex ID, use it. Otherwise ignore that group.
+      const potentialId = match[2]
+      const potentialVer = match[3]
+
+      if (!displayName || displayName === filenameNoExt) displayName = potentialName
+
+      if (allowRegexId && potentialId) {
+        // Basic check: is it purely numeric?
+        if (/^\d+$/.test(potentialId)) nexusId = potentialId
+      }
+
+      if (!version) version = potentialVer
+    } else {
+      const match2 = remainder.match(/^(.*)-(\d+)-(.+)$/)
+      if (match2) {
+        if (!displayName || displayName === filenameNoExt) displayName = match2[1]
+        if (allowRegexId && match2[2]) nexusId = match2[2]
+        if (!version) version = match2[3]
+      }
+    }
+
+    // 4. Fetch Official Metadata if ID is known
+    if (nexusId && this.nexusApiKey) {
+      try {
+        const slug = nexusDomain || this.getNexusSlug(gameId)
+        const data = await fetchNexusMetadata(this.nexusApiKey, slug, nexusId)
+        if (data) {
+          displayName = data.name || displayName
+          version = data.version || version
+          author = data.uploaded_by || author
+          description = data.summary || description
+          imageUrl = data.picture_url || imageUrl
+        }
+      } catch (e: any) {
+        console.warn('Failed to fetch Nexus metadata:', e.message)
+      }
+    }
+
+    return {
+      displayName,
+      version,
+      nexusId,
+      author,
+      description,
+      imageUrl,
+      sourceUrl,
+      type,
+      nexusDomain,
+      note
+    }
+  }
+
   async installMod(
     gameId: string,
     zipPath: string,
@@ -478,134 +750,28 @@ export class PluginManager {
 
     await extractArchive(zipPath, modStagingPath)
 
+    const {
+      displayName,
+      version,
+      nexusId,
+      author,
+      description,
+      imageUrl,
+      sourceUrl,
+      type,
+      nexusDomain,
+      note
+    } = await this.resolveModMetadata(gameId, zipPath, options)
+
+    // Double check specific files in extracted path if generic type
+    let finalType = type
+    if (finalType === 'mod') {
+      if (fs.existsSync(path.join(modStagingPath, 'dinput8.dll'))) {
+        finalType = 'loader'
+      }
+    }
+
     const manifest = this.readManifest(gameId)
-
-    let type: 'mod' | 'loader' | string = 'mod'
-    let version: string | undefined
-    let nexusId: string | undefined
-    let author = 'Unknown'
-    let description: string | undefined
-    let imageUrl: string | undefined
-    let sourceUrl: string | undefined
-    let note: string | undefined
-
-    const filenameNoExt = path.parse(zipPath).name
-    let displayName = filenameNoExt
-    if (options.name) displayName = options.name
-
-    // 1. Regex Parsing
-    let remainder = filenameNoExt
-    const duplicateMatch = remainder.match(/(.*)\s\(\d+\)$/)
-    if (duplicateMatch) remainder = duplicateMatch[1]
-    const tsMatch = remainder.match(/-(\d{9,})$/)
-    if (tsMatch) remainder = remainder.substring(0, remainder.length - tsMatch[0].length)
-
-    const greedyRegex = /^(.*)-(\d+)-(.+)$/
-    const match = remainder.match(greedyRegex)
-
-    if (match) {
-      let potentialName = match[1]
-      let potentialId = match[2]
-      let potentialVer = match[3]
-
-      // Keep track of the best candidate (left-most valid nexus ID found so far)
-      let bestName = potentialName
-      let bestId = potentialId
-      let bestVer = potentialVer
-
-      // Scan leftwards to find better ID candidates (consuming version parts)
-      // Increased depth and allow alphanumeric words to be consumed into version
-      for (let i = 0; i < 20; i++) {
-        // Match "-123" with optional spaces
-        const suffixMatch = potentialName.match(/\s*-\s*(\d+)$/)
-        if (suffixMatch) {
-          // Found a number to the left - new Candidate ID
-          if (potentialId) {
-            potentialVer = `${potentialId}-${potentialVer}`
-          }
-          potentialId = suffixMatch[1]
-          potentialName = potentialName.substring(0, potentialName.length - suffixMatch[0].length)
-
-          bestName = potentialName
-          bestId = potentialId
-          bestVer = potentialVer
-          continue
-        }
-
-        // Check for non-numeric version parts (e.g. "pack", "v", "beta")
-        // Match "-word" with optional spaces
-        const wordMatch = potentialName.match(/\s*-\s*([a-zA-Z0-9_\.]+)$/)
-        if (wordMatch) {
-          const part = wordMatch[1]
-          if (potentialId) {
-            potentialVer = `${potentialId}-${potentialVer}`
-          }
-          potentialVer = `${part}-${potentialVer}`
-          potentialId = '' // Current "ID" slot is empty as we search left for a number
-          potentialName = potentialName.substring(0, potentialName.length - wordMatch[0].length)
-          continue
-        }
-
-        break
-      }
-
-      displayName = bestName
-      nexusId = bestId
-      version = bestVer
-      if (/^\d+(-\d+)+$/.test(version)) version = version.replace(/-/g, '.')
-    } else {
-      const match2 = remainder.match(/^(.*)-(\d+)-(.+)$/)
-      if (match2) {
-        displayName = match2[1]
-        nexusId = match2[2]
-        version = match2[3]
-      }
-    }
-
-    let nexusDomain: string | undefined
-
-    // 2. Plugin Custom Logic
-    const customType = (await this.runCommand(gameId, 'determineModType', modStagingPath)) as any
-    if (customType) {
-      if (typeof customType === 'string') {
-        type = customType
-      } else if (typeof customType === 'object') {
-        if (customType.type) type = customType.type
-        if (customType.nexusId) nexusId = customType.nexusId
-        if (customType.sourceUrl) sourceUrl = customType.sourceUrl
-        if (customType.version) version = customType.version
-        if (customType.author) author = customType.author
-        if (customType.note) note = customType.note
-        if (customType.nexusDomain) nexusDomain = customType.nexusDomain
-      }
-    } else if (
-      fs.existsSync(path.join(modStagingPath, 'dinput8.dll')) ||
-      zipPath.toLowerCase().includes('loader')
-    ) {
-      type = 'loader'
-    }
-
-    if ((options as any).author) author = (options as any).author
-    if ((options as any).description) description = (options as any).description
-    if ((options as any).imageUrl) imageUrl = (options as any).imageUrl
-    if (options.version) version = options.version
-    if (options.nexusId) nexusId = options.nexusId
-
-    if (nexusId && this.nexusApiKey) {
-      try {
-        const slug = nexusDomain || this.getNexusSlug(gameId)
-        const data = await fetchNexusMetadata(this.nexusApiKey, slug, nexusId)
-        if (data) {
-          if (data.name && !options.name) displayName = data.name
-          if (data.version && !options.version) version = data.version
-          if (data.uploaded_by) author = data.uploaded_by
-          if (data.summary) description = data.summary
-          if (data.picture_url) imageUrl = data.picture_url
-        }
-      } catch (e: any) {
-        console.warn('Failed to fetch Nexus metadata:', e.message)
-      }
-    }
 
     manifest.mods = manifest.mods.filter((m) => m.id !== modId)
     manifest.mods.push({
@@ -617,7 +783,7 @@ export class PluginManager {
       enabled: false,
       installDate: Date.now(),
       files: [],
-      type,
+      type: finalType,
       version,
       nexusId,
       sourceUrl: sourceUrl || options.sourceUrl,
@@ -794,130 +960,36 @@ export class PluginManager {
       }
     }
 
-    const filenameNoExt = path.parse(filePath).name
-    let displayName = filenameNoExt
-    let nexusId: string | undefined
-    let version: string | undefined
-    let author: string | undefined
-    let description: string | undefined
-    let imageUrl: string | undefined
-    let nexusDomain: string | undefined
-    let sourceUrl: string | undefined
-
     try {
-      const fileList = await listArchiveFiles(filePath)
-      const customMeta = (await this.runCommand(gameId, 'analyzeArchive', fileList)) as any
-      if (customMeta && typeof customMeta === 'object') {
-        if (customMeta.type) displayName = customMeta.type
-        if (customMeta.name) displayName = customMeta.name
-        if (customMeta.nexusId) nexusId = customMeta.nexusId
-        if (customMeta.version) version = customMeta.version
-        if (customMeta.author) author = customMeta.author
-        if (customMeta.nexusDomain) nexusDomain = customMeta.nexusDomain
-        if (customMeta.sourceUrl) sourceUrl = customMeta.sourceUrl
-        if (customMeta.description) description = customMeta.description
-        if (customMeta.imageUrl) imageUrl = customMeta.imageUrl
-      }
-    } catch (e) {
-      console.warn('Archive analysis failed:', e)
-    }
+      const { displayName, version, nexusId, author, description, imageUrl, sourceUrl } =
+        await this.resolveModMetadata(gameId, filePath)
 
-    let remainder = filenameNoExt
-    const duplicateMatch = remainder.match(/(.*)\s\(\d+\)$/)
-    if (duplicateMatch) remainder = duplicateMatch[1]
-
-    const tsMatch = remainder.match(/-(\d{9,})$/)
-    if (tsMatch) remainder = remainder.substring(0, remainder.length - tsMatch[0].length)
-
-    const greedyRegex = /^(.*)-(\d+)-(.+)$/
-    const match = remainder.match(greedyRegex)
-    if (match) {
-      let potentialName = match[1]
-      let potentialId = match[2]
-      let potentialVer = match[3]
-
-      // Keep track of the best candidate (left-most valid nexus ID found so far)
-      let bestName = potentialName
-      let bestId = potentialId
-      let bestVer = potentialVer
-
-      // Scan leftwards to find better ID candidates (consuming version parts)
-      // Increased depth and allow alphanumeric words to be consumed into version
-      for (let i = 0; i < 20; i++) {
-        // Match "-123" with optional spaces
-        const suffixMatch = potentialName.match(/\s*-\s*(\d+)$/)
-        if (suffixMatch) {
-          // Found a number to the left - new Candidate ID
-          if (potentialId) {
-            potentialVer = `${potentialId}-${potentialVer}`
-          }
-          potentialId = suffixMatch[1]
-          potentialName = potentialName.substring(0, potentialName.length - suffixMatch[0].length)
-
-          bestName = potentialName
-          bestId = potentialId
-          bestVer = potentialVer
-          continue
+      return {
+        type: 'mod',
+        meta: {
+          name: displayName,
+          version,
+          nexusId,
+          author,
+          description,
+          imageUrl,
+          path: filePath,
+          sourceUrl
         }
-
-        // Check for non-numeric version parts (e.g. "pack", "v", "beta")
-        // Match "-word" with optional spaces
-        const wordMatch = potentialName.match(/\s*-\s*([a-zA-Z0-9_\.]+)$/)
-        if (wordMatch) {
-          const part = wordMatch[1]
-          if (potentialId) {
-            potentialVer = `${potentialId}-${potentialVer}`
-          }
-          potentialVer = `${part}-${potentialVer}`
-          potentialId = '' // Current "ID" slot is empty as we search left for a number
-          potentialName = potentialName.substring(0, potentialName.length - wordMatch[0].length)
-          continue
-        }
-
-        break
       }
+    } catch (e: any) {
+      if (e.message.startsWith('REDIRECT_GAME:')) {
+        const parts = e.message.split('|||')
+        const mainPart = parts[0].replace('REDIRECT_GAME:', '')
+        const metaPart = parts[1]
+        let meta = null
+        try {
+          meta = JSON.parse(metaPart)
+        } catch {}
 
-      displayName = bestName
-      nexusId = bestId
-      version = bestVer
-      if (/^\d+(-\d+)+$/.test(version)) version = version.replace(/-/g, '.')
-    } else {
-      const match2 = remainder.match(/^(.*)-(\d+)-(.+)$/)
-      if (match2) {
-        displayName = match2[1]
-        nexusId = match2[2]
-        version = match2[3]
+        return { type: 'redirect', gameId: mainPart, meta }
       }
-    }
-
-    if (nexusId && this.nexusApiKey) {
-      try {
-        const slug = nexusDomain || this.getNexusSlug(gameId)
-        const data = await fetchNexusMetadata(this.nexusApiKey, slug, nexusId)
-        if (data) {
-          if (data.name) displayName = data.name
-          if (data.version) version = data.version
-          if (data.uploaded_by) author = data.uploaded_by
-          if (data.summary) description = data.summary
-          if (data.picture_url) imageUrl = data.picture_url
-        }
-      } catch (e: any) {
-        console.warn('Failed to fetch Nexus metadata during analysis:', e.message)
-      }
-    }
-
-    return {
-      type: 'mod',
-      meta: {
-        name: displayName,
-        version,
-        nexusId,
-        author,
-        description,
-        imageUrl,
-        path: filePath,
-        sourceUrl
-      }
+      throw e
     }
   }
 

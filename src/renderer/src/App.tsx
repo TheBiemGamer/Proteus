@@ -12,6 +12,7 @@ import { DragDropOverlay } from './components/DragDropOverlay'
 import { ExportModpackModal } from './components/modals/ExportModpackModal'
 import { PreviewModpackModal } from './components/modals/PreviewModpackModal'
 import { InstallPreviewModal } from './components/modals/InstallPreviewModal'
+import { RedirectModal } from './components/modals/RedirectModal'
 import { ModDetailModal } from './components/modals/ModDetailModal'
 import { Game, Mod } from './types'
 
@@ -66,6 +67,12 @@ function App() {
   // UI States
   const [dragOver, setDragOver] = useState(false)
   const [installPreview, setInstallPreview] = useState<{ file: string; meta: any } | null>(null)
+  const [redirectInfo, setRedirectInfo] = useState<{
+    gameId: string
+    gameName: string
+    meta: any
+    filePath: string
+  } | null>(null)
   const [detailMod, setDetailMod] = useState<Mod | null>(null)
 
   // Settings
@@ -231,20 +238,75 @@ function App() {
 
   const handleAnalyzeAndInstall = async (filePath: string) => {
     if (!currentGame) return
-    addToast('Analyzing file...', 'info')
 
-    try {
+    const promise = (async () => {
       const result = await (window as any).electron.analyzeFile(currentGame.id, filePath)
+
+      if (result.type === 'redirect') {
+        const otherGame = games.find((g) => g.id === result.gameId)
+        if (otherGame) {
+          setRedirectInfo({
+            gameId: result.gameId,
+            gameName: otherGame.name,
+            meta: result.meta,
+            filePath: filePath
+          })
+          return 'Redirect detected'
+        }
+      }
 
       if (result.type === 'modpack') {
         setPreviewModpack({ ...result.meta, filePath })
+        return `Modpack detected: ${result.meta.title}`
       } else {
         // Mod
         setInstallPreview({ file: filePath, meta: result.meta })
+        return 'Analysis complete'
       }
-    } catch (e: any) {
-      addToast('Failed to analyze file', 'error')
-    }
+    })()
+
+    toast.promise(
+      promise,
+      {
+        pending: 'Analyzing file...',
+        success: {
+          render({ data }) {
+            return data
+          }
+        },
+        error: 'Failed to analyze file'
+      },
+      { theme: 'dark' }
+    )
+  }
+
+  const handleSwitchGame = () => {
+    if (!redirectInfo) return
+    const { gameId, filePath } = redirectInfo
+
+    setRedirectInfo(null)
+    setSelectedGame(gameId)
+
+    // Wait for state update then re-trigger
+    setTimeout(() => {
+      // Manually invoke with new ID
+      ;(window as any).electron.analyzeFile(gameId, filePath).then((res: any) => {
+        if (res.type === 'modpack') {
+          setPreviewModpack({ ...res.meta, filePath })
+        } else if (res.type === 'mod') {
+          setInstallPreview({ file: filePath, meta: res.meta })
+        }
+      })
+    }, 300)
+  }
+
+  const handleInstallHere = () => {
+    if (!redirectInfo) return
+    const { filePath, meta } = redirectInfo
+
+    // Force install in current game context using the metadata we found
+    setInstallPreview({ file: filePath, meta: meta })
+    setRedirectInfo(null)
   }
 
   const confirmModInstall = async () => {
@@ -377,6 +439,18 @@ function App() {
   const handleManageGame = async () => {
     if (!selectedGame) return
     setIsManaging(true)
+    const toastId = toast.loading('Preparing game...', { theme: 'dark' })
+    const seenUrls = new Set<string>()
+
+    const cleanup = (window as any).electron.onDownloadProgress((data: any) => {
+      seenUrls.add(data.url)
+      const filename = data.url.split('/').pop()?.split('?')[0] || 'file'
+      toast.update(toastId, {
+        render: `Downloading resource ${seenUrls.size}: ${filename} (${data.progress}%)`,
+        progress: data.progress / 100
+      })
+    })
+
     try {
       const updatedGames = await (window as any).electron.manageGame(selectedGame)
       setGames(updatedGames)
@@ -386,9 +460,15 @@ function App() {
         setMods(list)
         // Refresh health check immediately after managing
         await checkHealth(selectedGame)
-        addToast(t.gameManaged, 'success')
+        toast.update(toastId, { render: t.gameManaged, type: 'success', isLoading: false })
+      } else {
+        toast.dismiss(toastId)
       }
+    } catch (e) {
+      console.error(e)
+      toast.update(toastId, { render: 'Setup failed', type: 'error', isLoading: false })
     } finally {
+      cleanup()
       setIsManaging(false)
     }
   }
@@ -566,6 +646,17 @@ function App() {
           confirmModInstall={confirmModInstall}
           isManaging={isManaging}
           settings={settings}
+          t={t}
+        />
+      )}
+
+      {redirectInfo && (
+        <RedirectModal
+          redirectInfo={redirectInfo}
+          setRedirectInfo={setRedirectInfo}
+          handleSwitchGame={handleSwitchGame}
+          handleInstallHere={handleInstallHere}
+          t={t}
         />
       )}
 
@@ -576,6 +667,7 @@ function App() {
           handleUninstallDetailMod={handleUninstallDetailMod}
           handleToggleDetailMod={handleToggleDetailMod}
           currentGame={currentGame}
+          t={t}
         />
       )}
     </div>

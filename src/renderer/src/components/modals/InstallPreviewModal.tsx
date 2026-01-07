@@ -8,6 +8,7 @@ interface InstallPreviewModalProps {
   confirmModInstall: () => void
   isManaging: boolean
   settings: IAppSettings
+  t: any
 }
 
 export const InstallPreviewModal: React.FC<InstallPreviewModalProps> = ({
@@ -15,7 +16,8 @@ export const InstallPreviewModal: React.FC<InstallPreviewModalProps> = ({
   setInstallPreview,
   confirmModInstall,
   isManaging,
-  settings
+  settings,
+  t
 }) => {
   return (
     <div
@@ -66,7 +68,7 @@ export const InstallPreviewModal: React.FC<InstallPreviewModalProps> = ({
               {installPreview.meta.version || '?.?.?'}
             </span>
             <span className="px-2 py-1 bg-white/5 rounded text-xs text-blue-400 border border-white/10">
-              {installPreview.meta.author || 'Unknown Author'}
+              {installPreview.meta.author || t.author || 'Unknown Author'}
             </span>
             {installPreview.meta.nexusId && (
               <span className="px-2 py-1 bg-orange-900/40 text-orange-400 rounded text-xs border border-orange-700/40">
@@ -76,7 +78,7 @@ export const InstallPreviewModal: React.FC<InstallPreviewModalProps> = ({
           </div>
 
           <p className="text-gray-300 whitespace-pre-wrap leading-relaxed">
-            {installPreview.meta.description || 'No description available.'}
+            {installPreview.meta.description || t.noDescription}
           </p>
         </div>
 
@@ -85,14 +87,14 @@ export const InstallPreviewModal: React.FC<InstallPreviewModalProps> = ({
             onClick={() => setInstallPreview(null)}
             className="px-4 py-2 text-gray-400 hover:text-white god-transition"
           >
-            Cancel
+            {t.cancel}
           </button>
           <button
             onClick={confirmModInstall}
             disabled={isManaging}
             className="px-6 py-2 bg-[rgb(var(--theme-accent))] hover:bg-[rgb(var(--theme-accent))]/80 text-white rounded-xl shadow-lg shadow-[rgb(var(--theme-accent))]/20 font-semibold god-transition"
           >
-            {isManaging ? 'Installing...' : 'Install Mod'}
+            {isManaging ? t.installing : t.installMod}
           </button>
         </div>
       </div>
