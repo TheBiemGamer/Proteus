@@ -25,6 +25,22 @@ function App() {
   const [appVersion, setAppVersion] = useState<string>('')
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
 
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 1024) {
+        setIsSidebarCollapsed(true)
+      } else {
+        setIsSidebarCollapsed(false)
+      }
+    }
+
+    // Initial check
+    handleResize()
+
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
   // Proteus Theme Logic
   useEffect(() => {
     if (!selectedGame) return

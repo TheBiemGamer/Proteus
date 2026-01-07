@@ -48,16 +48,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div
         className={`p-6 flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-between'}`}
       >
-        <div className={`${isSidebarCollapsed ? 'hidden' : 'hidden lg:block'}`}>
-          <h1
-            className="text-2xl font-black bg-gradient-to-r from-[rgb(var(--theme-accent))] to-white bg-clip-text text-transparent tracking-tighter cursor-pointer god-transition hover:opacity-80"
-            onClick={() => setView('library')}
-          >
-            PROTEUS
-          </h1>
-          <p className="text-xs text-[rgb(var(--theme-text-muted))] mt-1 uppercase tracking-widest font-semibold">
-            {t.library}
-          </p>
+        <div className={`${isSidebarCollapsed ? 'lg:hidden' : 'hidden lg:block'}`}>
+          {isSidebarCollapsed ? (
+            <h1
+              className="text-2xl font-black bg-gradient-to-r from-[rgb(var(--theme-accent))] to-white bg-clip-text text-transparent tracking-tighter cursor-pointer god-transition hover:opacity-80"
+              onClick={() => setView('library')}
+            >
+              P
+            </h1>
+          ) : (
+            <>
+              <h1
+                className="text-2xl font-black bg-gradient-to-r from-[rgb(var(--theme-accent))] to-white bg-clip-text text-transparent tracking-tighter cursor-pointer god-transition hover:opacity-80"
+                onClick={() => setView('library')}
+              >
+                PROTEUS
+              </h1>
+              <p className="text-xs text-[rgb(var(--theme-text-muted))] mt-1 uppercase tracking-widest font-semibold">
+                {t.library}
+              </p>
+            </>
+          )}
         </div>
 
         <div className="flex items-center gap-1">
@@ -79,7 +90,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
           <button
             onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-            className={`rounded-xl hover:bg-white/5 text-[rgb(var(--theme-text-muted))] hover:text-white transition-colors outline-none ${isSidebarCollapsed ? 'p-1' : 'p-2'}`}
+            className={`rounded-xl hover:bg-white/5 text-[rgb(var(--theme-text-muted))] hover:text-white transition-colors outline-none hidden lg:flex ${isSidebarCollapsed ? 'p-1' : 'p-2'}`}
             title={isSidebarCollapsed ? 'Expand' : 'Collapse'}
           >
             {isSidebarCollapsed ? (
