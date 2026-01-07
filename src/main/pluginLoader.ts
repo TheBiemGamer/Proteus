@@ -1348,8 +1348,14 @@ export class PluginManager {
     const plugin = this.plugins.get(gameId)
     // Access property dynamically as it isn't in strictly typed interface yet
     const exts = (plugin as any)?.modFileExtensions
-    if (exts && Array.isArray(exts)) {
-      return exts
+    if (exts) {
+      // vm2 arrays might fail Array.isArray check in host context, so we convert safely
+      try {
+        const arr = Array.from(exts) as string[]
+        if (arr.length > 0) return arr
+      } catch (e) {
+        console.warn('Failed to convert modFileExtensions to array', e)
+      }
     }
     return ['zip', 'rar', '7z', 'mod']
   }

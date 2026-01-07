@@ -1,6 +1,6 @@
 <img src="./assets/image.png" alt="Proteus Mod Manager Banner" style="width:75%; border-radius: 10px;"/>
 
-# Proteus Mod Manager (PMM)
+# Proteus
 
 > [!IMPORTANT]
 > **Status: Early Development** Proteus Mod Manager is currently in alpha. Expect bugs, breaking changes, and rapid iterations.

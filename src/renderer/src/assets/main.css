@@ -113,3 +113,36 @@ body {
 .bg-gray-900 ::-webkit-scrollbar-thumb:hover {
   @apply bg-gray-600;
 }
+
+/* React Toastify Custom Styes */
+.glass-toast {
+  background: rgba(0, 0, 0, 0.6) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37) !important;
+  border-radius: 1rem !important;
+  color: white !important;
+  font-family: inherit !important;
+  margin-bottom: 0.5rem !important;
+  overflow: hidden !important;
+}
+
+.glass-toast-body {
+  font-size: 0.95rem;
+  font-weight: 500;
+  padding: 0.25rem;
+}
+
+.glass-toast-progress {
+  background: rgb(var(--theme-accent)) !important;
+  box-shadow: 0 0 10px rgba(var(--theme-accent), 0.5);
+}
+
+.Toastify__close-button {
+  color: rgba(255, 255, 255, 0.6) !important;
+  opacity: 0.7;
+}
+.Toastify__close-button:hover {
+  opacity: 1;
+}

@@ -60,9 +60,26 @@ const api = {
   // Auto Updater
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
   quitAndInstall: () => ipcRenderer.invoke('quit-and-install'),
-  onUpdateAvailable: (callback: () => void) => ipcRenderer.on('update-available', () => callback()),
-  onUpdateDownloaded: (callback: () => void) =>
-    ipcRenderer.on('update-downloaded', () => callback())
+  onUpdateAvailable: (callback: () => void) => {
+    const subscription = (_event) => callback()
+    ipcRenderer.on('update-available', subscription)
+    return () => ipcRenderer.removeListener('update-available', subscription)
+  },
+  onUpdateNotAvailable: (callback: () => void) => {
+    const subscription = (_event) => callback()
+    ipcRenderer.on('update-not-available', subscription)
+    return () => ipcRenderer.removeListener('update-not-available', subscription)
+  },
+  onUpdateError: (callback: (error: string) => void) => {
+    const subscription = (_event, error) => callback(error)
+    ipcRenderer.on('update-error', subscription)
+    return () => ipcRenderer.removeListener('update-error', subscription)
+  },
+  onUpdateDownloaded: (callback: () => void) => {
+    const subscription = (_event) => callback()
+    ipcRenderer.on('update-downloaded', subscription)
+    return () => ipcRenderer.removeListener('update-downloaded', subscription)
+  }
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

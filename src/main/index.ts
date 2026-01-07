@@ -89,15 +89,19 @@ app.whenReady().then(() => {
 
   ipcMain.handle('install-mod-dialog', async (_, gameId) => {
     const extensions = pluginManager.getSupportedExtensions(gameId)
+    console.log(`Opening mod dialog for ${gameId} with extensions:`, extensions)
     const { canceled, filePaths } = await dialog.showOpenDialog({
-      properties: ['openFile'],
-      filters: [{ name: 'Mods', extensions }]
+      properties: ['openFile', 'multiSelections'],
+      filters: [{ name: 'Supported Mod Files', extensions }]
     })
 
     if (canceled || filePaths.length === 0) return { canceled: true }
 
-    // Logic moved to renderer: Analyzer first, then install
-    return { canceled: false, filePath: filePaths[0] }
+    // Returning just the first one? The logic in App.tsx seems to handle one currently,
+    // but the request was about the dialog filter.
+    // If the valid formats are strictly adhered to, only valid files will be picked.
+
+    return { canceled: false, filePath: filePaths[0], filePaths }
   })
 
   ipcMain.handle('install-mod-direct', async (_, gameId, filePath, options) => {
@@ -298,9 +302,13 @@ app.whenReady().then(() => {
   })
 
   // Auto Updater
-  ipcMain.handle('check-for-updates', () => {
+  ipcMain.handle('check-for-updates', async () => {
     if (!is.dev) {
-      return autoUpdater.checkForUpdates()
+      console.log('Checking for updates...')
+      const result = await autoUpdater.checkForUpdates()
+      return result
+    } else {
+      console.log('Skipping update check in dev mode')
     }
     return null
   })
@@ -310,11 +318,25 @@ app.whenReady().then(() => {
   })
 
   autoUpdater.on('update-available', () => {
+    console.log('Update available')
     const mainWindow = BrowserWindow.getAllWindows()[0]
     if (mainWindow) mainWindow.webContents.send('update-available')
   })
 
+  autoUpdater.on('update-not-available', () => {
+    console.log('Update not available')
+    const mainWindow = BrowserWindow.getAllWindows()[0]
+    if (mainWindow) mainWindow.webContents.send('update-not-available')
+  })
+
+  autoUpdater.on('error', (err) => {
+    console.error('Update error:', err)
+    const mainWindow = BrowserWindow.getAllWindows()[0]
+    if (mainWindow) mainWindow.webContents.send('update-error', err.message)
+  })
+
   autoUpdater.on('update-downloaded', () => {
+    console.log('Update downloaded')
     const mainWindow = BrowserWindow.getAllWindows()[0]
     if (mainWindow) mainWindow.webContents.send('update-downloaded')
   })

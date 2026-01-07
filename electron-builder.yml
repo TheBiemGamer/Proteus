@@ -43,4 +43,4 @@ npmRebuild: false
 publish:
   provider: github
   owner: TheBiemGamer
-  repo: ModManager
+  repo: Proteus

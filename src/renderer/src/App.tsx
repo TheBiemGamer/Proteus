@@ -17,12 +17,12 @@ import {
   ChevronLeft,
   ChevronRight
 } from 'lucide-react'
+import { ToastContainer, toast } from 'react-toastify'
+import 'react-toastify/dist/ReactToastify.css'
 import './assets/main.css'
 import { translations } from './utils/i18n'
 import { ExtensionManager } from './components/ExtensionManager'
 import { IAppSettings } from '../../shared/types'
-
-import { ToastContainer, Toast } from './components/ToastContainer'
 
 interface Game {
   id: string
@@ -73,7 +73,6 @@ function App() {
   const [gameHealth, setGameHealth] = useState<any>({ valid: true })
   const [showSourcesMenu, setShowSourcesMenu] = useState(false)
   const [appVersion, setAppVersion] = useState<string>('')
-  const [toasts, setToasts] = useState<Toast[]>([])
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
 
   // Proteus Theme Logic
@@ -138,21 +137,48 @@ function App() {
     setAppVersion(v)
   }
 
+  const handleUpdateCheck = async () => {
+    console.log('User requested update check')
+    const promise = (window as any).electron.checkForUpdates()
+
+    toast.promise(
+      promise,
+      {
+        pending: 'Checking for updates...',
+        success: {
+          render({ data }: any) {
+            // data is the result from checkForUpdates (UpdateCheckResult | null)
+            if (!data) return 'Update check completed (Dev Mode)'
+            if (data.updateInfo) return `Update available: ${data.updateInfo.version}`
+            return 'No updates available'
+          }
+        },
+        error: 'Error checking for updates'
+      },
+      {
+        theme: 'dark'
+      }
+    )
+  }
+
+  useEffect(() => {
+    // Only listen for downloaded event, as checking/available are handled by promise
+    const d3 = (window as any).electron.onUpdateDownloaded(() => {
+      addToast('Update downloaded. Restart to install?', 'success')
+    })
+
+    return () => {
+      d3 && d3()
+    }
+  }, [])
+
   const loadSettings = async () => {
     const s = await (window as any).electron.getSettings()
     setSettings(s)
   }
 
   const addToast = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
-    const id = Date.now()
-    setToasts((prev) => [...prev, { id, message, type }])
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id))
-    }, 3000)
-  }
-
-  const removeToast = (id: number) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id))
+    toast(message, { type: type as any, theme: 'dark' })
   }
 
   const handleSaveSettings = async (newSettings: IAppSettings) => {
@@ -480,7 +506,19 @@ function App() {
           </div>
         </div>
       )}
-      <ToastContainer toasts={toasts} removeToast={removeToast} />
+      <ToastContainer
+        position="bottom-right"
+        autoClose={3000}
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="dark"
+        toastClassName="glass-toast"
+      />
       {/* Floating Dock */}
       <aside
         className={`${isSidebarCollapsed ? 'w-20' : 'w-20 lg:w-72'} glass-dock rounded-2xl flex flex-col god-transition z-10`}
@@ -782,7 +820,7 @@ function App() {
                   </div>
                   <div className="pt-6">
                     <button
-                      onClick={() => (window as any).electron.checkForUpdates()}
+                      onClick={handleUpdateCheck}
                       className="px-6 py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl font-medium god-transition border border-white/5 hover:border-white/10"
                     >
                       Check for Updates
@@ -1312,7 +1350,7 @@ function App() {
                   <h2 className="text-3xl font-bold text-white shadow-sm">
                     {previewModpack.meta.title}
                   </h2>
-                  <div className="flex items-center space-x-2 text-indigo-300 mt-1">
+                  <div className="flex items-center space-x-2 text-[rgb(var(--theme-accent))]/80 mt-1">
                     <span className="font-semibold px-2 py-0.5 rounded bg-black/40 border border-white/10 text-xs uppercase tracking-wider text-white">
                       {games.find((g) => g.id === previewModpack.meta.gameId)?.name ||
                         previewModpack.meta.gameId}
@@ -1328,8 +1366,8 @@ function App() {
             {!previewModpack.image && (
               <div className="p-8 border-b border-white/10">
                 <h2 className="text-3xl font-bold text-white">{previewModpack.meta.title}</h2>
-                <div className="flex items-center space-x-2 text-indigo-300 mt-3">
-                  <span className="font-semibold px-2 py-0.5 rounded bg-indigo-900/50 border border-indigo-500/30 text-indigo-200 text-xs uppercase tracking-wider">
+                <div className="flex items-center space-x-2 text-[rgb(var(--theme-accent))]/80 mt-3">
+                  <span className="font-semibold px-2 py-0.5 rounded bg-[rgb(var(--theme-accent))]/20 border border-[rgb(var(--theme-accent))]/30 text-[rgb(var(--theme-accent))] text-xs uppercase tracking-wider">
                     {games.find((g) => g.id === previewModpack.meta.gameId)?.name ||
                       previewModpack.meta.gameId}
                   </span>
@@ -1371,7 +1409,7 @@ function App() {
               </button>
               <button
                 onClick={handleInstallModpackConfirm}
-                className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl shadow-lg shadow-indigo-900/20 font-semibold flex items-center space-x-2 god-transition"
+                className="px-6 py-2 bg-[rgb(var(--theme-accent))] hover:bg-[rgb(var(--theme-accent))]/80 text-white rounded-xl shadow-lg shadow-[rgb(var(--theme-accent))]/20 font-semibold flex items-center space-x-2 god-transition"
               >
                 {isManaging ? <span>{t.installing}</span> : <span>{t.installPack}</span>}
               </button>
