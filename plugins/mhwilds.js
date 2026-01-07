@@ -3,7 +3,7 @@ module.exports.default = {
   name: 'Monster Hunter Wilds',
   version: '1.0.3',
   author: 'TheBiemGamer',
-  iconUrl: 'https://cdn2.steamgriddb.com/icon_thumb/a82115443df2caf9fd37795fe824a039.png',
+  iconUrl: 'https://cdn2.steamgriddb.com/icon/7bbc9c659df818a7dfe58a4bc89f6442/32/256x256.png',
   modSources: [{ text: 'Nexus Mods', url: 'https://www.nexusmods.com/monsterhunterwilds' }],
   executable: 'MonsterHunterWilds.exe',
   steamAppId: '2246340',
