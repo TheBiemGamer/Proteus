@@ -1,7 +1,8 @@
-import { useState, useEffect, DragEvent, ReactNode } from 'react'
+import { useState, useEffect, useMemo, DragEvent, ReactNode } from 'react'
 import { ToastContainer, toast } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
 import './assets/main.css'
+import { useSmoothTheme } from './hooks/useSmoothTheme'
 import { translations } from './utils/i18n'
 import { IAppSettings } from '../../shared/types'
 import { Sidebar } from './components/Sidebar'
@@ -43,26 +44,23 @@ function App() {
   }, [])
 
   // Proteus Theme Logic
-  useEffect(() => {
-    if (!selectedGame) return
-
+  const themeTargets = useMemo(() => {
     let accent = '59, 130, 246' // Default Blue
     let bgStart = '17, 24, 39'
     let bgEnd = '3, 7, 18'
 
-    const game = games.find((g) => g.id === selectedGame)
-    if (game && game.theme) {
-      accent = game.theme.accent
-      bgStart = game.theme.bgStart
-      if (game.theme.bgEnd) bgEnd = game.theme.bgEnd
+    if (selectedGame) {
+      const game = games.find((g) => g.id === selectedGame)
+      if (game && game.theme) {
+        accent = game.theme.accent
+        bgStart = game.theme.bgStart
+        if (game.theme.bgEnd) bgEnd = game.theme.bgEnd
+      }
     }
-
-    const root = document.documentElement
-    root.style.setProperty('--theme-accent', accent)
-    root.style.setProperty('--theme-bg-start', bgStart)
-    // Keep end dark for depth
-    root.style.setProperty('--theme-bg-end', bgEnd)
+    return { accent, bgStart, bgEnd }
   }, [selectedGame, games])
+
+  useSmoothTheme(themeTargets.accent, themeTargets.bgStart, themeTargets.bgEnd)
 
   // UI States
   const [dragOver, setDragOver] = useState(false)

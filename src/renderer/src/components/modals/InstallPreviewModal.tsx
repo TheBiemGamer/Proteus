@@ -1,5 +1,5 @@
 import React from 'react'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, X } from 'lucide-react'
 import { IAppSettings } from '../../../../shared/types'
 
 interface InstallPreviewModalProps {
@@ -49,6 +49,12 @@ export const InstallPreviewModal: React.FC<InstallPreviewModalProps> = ({
               </h2>
             </div>
           )}
+          <button
+            className="absolute top-4 right-4 z-30 text-white/50 hover:text-white transition-colors p-1"
+            onClick={() => setInstallPreview(null)}
+          >
+            <X className="w-8 h-8 drop-shadow-md" />
+          </button>
         </div>
 
         <div className="p-6 flex-1 overflow-y-auto space-y-4">

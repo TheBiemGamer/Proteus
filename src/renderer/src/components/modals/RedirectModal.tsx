@@ -1,5 +1,6 @@
 import { Dialog, Transition } from '@headlessui/react'
 import { Fragment } from 'react'
+import { X } from 'lucide-react'
 
 interface RedirectModalProps {
   redirectInfo: {
@@ -55,7 +56,13 @@ export function RedirectModal({
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <Dialog.Panel className="w-full max-w-2xl transform overflow-hidden rounded-2xl glass-panel p-6 text-left align-middle shadow-xl transition-all border border-yellow-500/30">
+              <Dialog.Panel className="w-full max-w-2xl transform overflow-hidden rounded-2xl glass-panel p-6 text-left align-middle shadow-xl transition-all border border-yellow-500/30 relative">
+                <button
+                  onClick={() => setRedirectInfo(null)}
+                  className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
                 <Dialog.Title
                   as="h3"
                   className="text-xl font-bold leading-6 text-yellow-400 mb-2 flex items-center gap-2"

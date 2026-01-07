@@ -589,6 +589,57 @@ export class PluginManager extends EventEmitter {
               if (otherMatch && (Array.isArray(otherMatch) ? otherMatch.length > 0 : true)) {
                 // Pick best match to show in preview
                 let match = Array.isArray(otherMatch) ? otherMatch[0] : otherMatch
+
+                if (Array.isArray(otherMatch)) {
+                  // If multiple matches, use regex on filename to disambiguate
+                  const filename = path.basename(filePath)
+                  const greedyRegex = /^(.*)-(\d+)-(.+)$/
+                  const regexMatch = filename.match(greedyRegex)
+                  let foundInArray: any = null
+
+                  if (regexMatch) {
+                    const potentialId = regexMatch[2]
+                    const found = otherMatch.find((r) => {
+                      const id = (r.mod && r.mod.mod_id) || r.mod_id
+                      return id && id.toString() === potentialId
+                    })
+                    if (found) {
+                      foundInArray = found
+                    }
+                  }
+
+                  if (!foundInArray && otherMatch.length > 0) {
+                    // Priority 1: Exact File Name Match
+                    const exactFileMatch = otherMatch.find(
+                      (r) => r.file_details && r.file_details.file_name === filename
+                    )
+
+                    if (exactFileMatch) {
+                      foundInArray = exactFileMatch
+                    } else {
+                      // Priority 2: Avoid "Guide" or "Modpack"
+                      const betterMatch = otherMatch.find((r) => {
+                        const name = (r.mod && r.mod.name) || ''
+                        return (
+                          !name.toLowerCase().includes('guide') &&
+                          !name.toLowerCase().includes('pack')
+                        )
+                      })
+
+                      if (betterMatch) {
+                        foundInArray = betterMatch
+                      } else {
+                        // Default to first
+                        foundInArray = otherMatch[0]
+                      }
+                    }
+                  }
+
+                  if (foundInArray) {
+                    match = foundInArray
+                  }
+                }
+
                 // Simplified extraction - similar to internal logic but we just need display info
                 let foundMeta = {
                   name: (match.mod && match.mod.name) || match.name || 'Unknown Mod',

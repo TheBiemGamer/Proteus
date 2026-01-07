@@ -98,7 +98,13 @@ export const ModList: React.FC<ModListProps> = ({
                 className={`w-1 h-12 rounded-full god-transition ${mod.enabled ? 'bg-[rgb(var(--theme-accent))] shadow-[0_0_15px_rgb(var(--theme-accent))]' : 'bg-white/10'}`}
               ></div>
 
-              <div className="flex flex-col flex-1 pl-4">
+              {mod.imageUrl && (
+                <div className="w-14 h-14 rounded-lg overflow-hidden flex-shrink-0 bg-white/5 border border-white/10">
+                  <img src={mod.imageUrl} alt={mod.name} className="w-full h-full object-cover" />
+                </div>
+              )}
+
+              <div className="flex flex-col flex-1">
                 <div className="flex items-center space-x-2">
                   <h3
                     className={`font-bold text-lg ${mod.enabled ? 'text-white' : 'text-[rgb(var(--theme-text-muted))]'} cursor-pointer hover:text-[rgb(var(--theme-accent))] transition-colors`}
@@ -240,7 +246,7 @@ export const ModList: React.FC<ModListProps> = ({
                 setShowSourcesMenu(!showSourcesMenu)
               }
             }}
-            className="w-full py-4 bg-[#da8e35]/10 hover:bg-[#da8e35]/20 border border-[#da8e35]/30 hover:border-[#da8e35]/50 border-dashed rounded-xl flex items-center justify-center space-x-3 text-[#da8e35] hover:text-[#ffaa46] god-transition group"
+            className="w-full py-4 bg-[rgb(var(--theme-accent))]/10 hover:bg-[rgb(var(--theme-accent))]/20 border border-[rgb(var(--theme-accent))]/30 hover:border-[rgb(var(--theme-accent))]/50 border-dashed rounded-xl flex items-center justify-center space-x-3 text-[rgb(var(--theme-accent))] hover:text-white god-transition group"
           >
             <Download className="w-5 h-5 fill-current" />
             <span className="font-semibold">
@@ -264,7 +270,7 @@ export const ModList: React.FC<ModListProps> = ({
                 <button
                   key={idx}
                   onClick={() => (window as any).electron.openUrl(source.url)}
-                  className="w-full text-left px-4 py-3 hover:bg-blue-500/10 hover:text-blue-400 text-gray-300 transition-colors flex items-center space-x-3 border-b border-gray-800 last:border-0"
+                  className="w-full text-left px-4 py-3 hover:bg-[rgb(var(--theme-accent))]/10 hover:text-[rgb(var(--theme-accent))] text-gray-300 transition-colors flex items-center space-x-3 border-b border-gray-800 last:border-0"
                 >
                   <span className="font-medium">{source.text}</span>
                   <span className="text-xs text-gray-600 truncate ml-auto max-w-[150px]">

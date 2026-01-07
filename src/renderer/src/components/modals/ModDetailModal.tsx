@@ -1,5 +1,5 @@
 import React from 'react'
-import { ExternalLink } from 'lucide-react'
+import { ExternalLink, X } from 'lucide-react'
 import { Game, Mod } from '../../types'
 
 interface ModDetailModalProps {
@@ -59,10 +59,10 @@ export const ModDetailModal: React.FC<ModDetailModalProps> = ({
           )}
 
           <button
-            className="absolute top-4 right-4 z-30 p-2 bg-black/50 hover:bg-black/70 rounded-full text-white god-transition"
+            className="absolute top-4 right-4 z-30 text-white/50 hover:text-white transition-colors p-1"
             onClick={() => setDetailMod(null)}
           >
-            ✕
+            <X className="w-8 h-8 drop-shadow-md" />
           </button>
         </div>
 
