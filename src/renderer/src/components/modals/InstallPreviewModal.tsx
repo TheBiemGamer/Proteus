@@ -9,6 +9,7 @@ interface InstallPreviewModalProps {
   isManaging: boolean
   settings: IAppSettings
   t: any
+  existingMod?: { id: string; version?: string; name: string } | null
 }
 
 export const InstallPreviewModal: React.FC<InstallPreviewModalProps> = ({
@@ -17,8 +18,10 @@ export const InstallPreviewModal: React.FC<InstallPreviewModalProps> = ({
   confirmModInstall,
   isManaging,
   settings,
-  t
+  t,
+  existingMod
 }) => {
+  const isUpdate = !!existingMod
   return (
     <div
       className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 god-transition animate-in fade-in duration-200"
@@ -69,10 +72,18 @@ export const InstallPreviewModal: React.FC<InstallPreviewModalProps> = ({
             </div>
           )}
           <div className="flex flex-wrap gap-2">
-            <span className="px-2 py-1 bg-white/5 rounded text-xs text-gray-400 border border-white/10">
-              {/^\d/.test(installPreview.meta.version || '') ? 'v' : ''}
-              {installPreview.meta.version || '?.?.?'}
-            </span>
+            {isUpdate ? (
+              <span className="px-2 py-1 bg-[rgb(var(--theme-accent))]/10 text-[rgb(var(--theme-accent))] rounded text-xs border border-[rgb(var(--theme-accent))]/20">
+                {/^\d/.test(existingMod!.version || '') ? 'v' : ''}
+                {existingMod!.version || '?.?.?'} → {/^\d/.test(installPreview.meta.version || '') ? 'v' : ''}
+                {installPreview.meta.version || '?.?.?'}
+              </span>
+            ) : (
+              <span className="px-2 py-1 bg-white/5 rounded text-xs text-gray-400 border border-white/10">
+                {/^\d/.test(installPreview.meta.version || '') ? 'v' : ''}
+                {installPreview.meta.version || '?.?.?'}
+              </span>
+            )}
             <span className="px-2 py-1 bg-white/5 rounded text-xs text-blue-400 border border-white/10">
               {installPreview.meta.author || t.author || 'Unknown Author'}
             </span>
@@ -100,7 +111,7 @@ export const InstallPreviewModal: React.FC<InstallPreviewModalProps> = ({
             disabled={isManaging}
             className="px-6 py-2 bg-[rgb(var(--theme-accent))] hover:bg-[rgb(var(--theme-accent))]/80 text-white rounded-xl shadow-lg shadow-[rgb(var(--theme-accent))]/20 font-semibold god-transition"
           >
-            {isManaging ? t.installing : t.installMod}
+            {isManaging ? (isUpdate ? t.updating || 'Updating...' : t.installing) : (isUpdate ? t.updateMod || 'Update Mod' : t.installMod)}
           </button>
         </div>
       </div>

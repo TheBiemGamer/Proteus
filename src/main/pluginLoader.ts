@@ -672,6 +672,17 @@ export class PluginManager extends EventEmitter {
 
             if (exactFileMatch) {
               foundId = (exactFileMatch.mod && exactFileMatch.mod.mod_id) || exactFileMatch.mod_id
+              // Extract version from file_details
+              if (exactFileMatch.file_details) {
+                const fileDetails = exactFileMatch.file_details
+                if (fileDetails.version && !version) {
+                  version = fileDetails.version
+                  console.log(`[HashCheck] Using file version from exact match: ${version}`)
+                } else if (fileDetails.mod_version && !version) {
+                  version = fileDetails.mod_version
+                  console.log(`[HashCheck] Using mod version from exact match: ${version}`)
+                }
+              }
             } else {
               // Priority 2: Avoid "Guide" or "Modpack" in the name if alternatives exist
               // (This is a heuristic, but often valid for duplicated files)
@@ -682,10 +693,32 @@ export class PluginManager extends EventEmitter {
 
               if (betterMatch) {
                 foundId = (betterMatch.mod && betterMatch.mod.mod_id) || betterMatch.mod_id
+                // Extract version from file_details
+                if (betterMatch.file_details) {
+                  const fileDetails = betterMatch.file_details
+                  if (fileDetails.version && !version) {
+                    version = fileDetails.version
+                    console.log(`[HashCheck] Using file version from better match: ${version}`)
+                  } else if (fileDetails.mod_version && !version) {
+                    version = fileDetails.mod_version
+                    console.log(`[HashCheck] Using mod version from better match: ${version}`)
+                  }
+                }
               } else {
                 // Default to first
                 const first = md5Result[0]
                 foundId = (first.mod && first.mod.mod_id) || first.mod_id
+                // Extract version from file_details
+                if (first.file_details) {
+                  const fileDetails = first.file_details
+                  if (fileDetails.version && !version) {
+                    version = fileDetails.version
+                    console.log(`[HashCheck] Using file version from first match: ${version}`)
+                  } else if (fileDetails.mod_version && !version) {
+                    version = fileDetails.mod_version
+                    console.log(`[HashCheck] Using mod version from first match: ${version}`)
+                  }
+                }
               }
             }
           }
@@ -693,6 +726,18 @@ export class PluginManager extends EventEmitter {
           // Single result
           if (md5Result.mod && md5Result.mod.mod_id) foundId = md5Result.mod.mod_id
           else if (md5Result.mod_id) foundId = md5Result.mod_id
+
+          // Extract version from file_details
+          if (md5Result.file_details) {
+            const fileDetails = md5Result.file_details
+            if (fileDetails.version && !version) {
+              version = fileDetails.version
+              console.log(`[HashCheck] Using file version from single result: ${version}`)
+            } else if (fileDetails.mod_version && !version) {
+              version = fileDetails.mod_version
+              console.log(`[HashCheck] Using mod version from single result: ${version}`)
+            }
+          }
         }
 
         if (foundId) {
@@ -700,6 +745,29 @@ export class PluginManager extends EventEmitter {
           hashMatchFound = true
           hashCheckStatus = 'match'
           console.log(`[HashCheck] Match found! ID: ${nexusId}`)
+
+          // Extract version from file_details if available
+          let matchedResult: any = null
+          if (Array.isArray(md5Result)) {
+            matchedResult = md5Result.find((r) => {
+              const id = (r.mod && r.mod.mod_id) || r.mod_id
+              return id && id.toString() === foundId.toString()
+            })
+          } else if (md5Result) {
+            matchedResult = md5Result
+          }
+
+          if (matchedResult && matchedResult.file_details) {
+            const fileDetails = matchedResult.file_details
+            if (fileDetails.version && !version) {
+              version = fileDetails.version
+              console.log(`[HashCheck] Using file version: ${version}`)
+            }
+            if (fileDetails.mod_version && !version) {
+              version = fileDetails.mod_version
+              console.log(`[HashCheck] Using mod version: ${version}`)
+            }
+          }
         } else {
           hashCheckStatus = 'not-found'
           console.log(`[HashCheck] No match found or Invalid Structure.`)
@@ -874,7 +942,10 @@ export class PluginManager extends EventEmitter {
         const data = await fetchNexusMetadata(this.nexusApiKey, slug, nexusId)
         if (data) {
           displayName = data.name || displayName
-          version = data.version || version
+          // Only use mod version if we didn't get version from file_details (hash match)
+          if (!hashMatchFound) {
+            version = data.version || version
+          }
           author = data.uploaded_by || author
           description = data.summary || description
           imageUrl = data.picture_url || imageUrl

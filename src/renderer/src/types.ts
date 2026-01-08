@@ -27,4 +27,7 @@ export interface Mod {
   description?: string
   imageUrl?: string
   note?: string
+  updateAvailable?: boolean
+  latestVersion?: string
+  updateError?: string
 }
