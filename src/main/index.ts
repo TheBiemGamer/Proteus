@@ -174,7 +174,34 @@ app
     })
 
     ipcMain.handle('manage-game', async (_, gameId) => {
-      return await pluginManager.manageGame(gameId)
+      try {
+        return await pluginManager.manageGame(gameId)
+      } catch (error: any) {
+        // If game is managed but there was a recoverable error, return the games list
+        // and attach error info so the UI can display it
+        if (error?.gameManaged) {
+          const games = await pluginManager.getGamesWithDetails()
+          // Attach error info to the result so UI can show warning
+          ;(games as any).__error = {
+            message: error?.message || 'Game setup completed with warnings',
+            isRecoverable: error?.isRecoverable || false,
+            isRateLimit: error?.isRateLimit || false
+          }
+          return games
+        }
+
+        // For non-recoverable errors, throw as before
+        const errorMessage = error?.message || 'Failed to set up game'
+        const formattedError = new Error(errorMessage)
+        // Preserve error metadata
+        if (error?.isRecoverable) {
+          ;(formattedError as any).isRecoverable = true
+        }
+        if (error?.gameManaged) {
+          ;(formattedError as any).gameManaged = true
+        }
+        throw formattedError
+      }
     })
     ipcMain.handle('unmanage-game', async (_, gameId) => {
       return await pluginManager.unmanageGame(gameId)

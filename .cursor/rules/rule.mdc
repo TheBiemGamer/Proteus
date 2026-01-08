@@ -1,0 +1,291 @@
+---
+name: rule
+description: Rules for the Proteus Mod Manager
+alwaysApply: true
+---
+
+# Proteus Mod Manager (PMM) - Cursor Rules
+
+## Project Overview
+
+**Proteus Mod Manager (PMM)** is a modular, extensible mod manager built with:
+- **Electron** (Main + Preload + Renderer processes)
+- **React** + **TypeScript** (UI)
+- **vm2** (Plugin sandboxing)
+- **pnpm** (Package manager)
+
+---
+
+## CRITICAL RULES - MUST FOLLOW
+
+### Rule 1: Plugin-First Architecture (NON-NEGOTIABLE)
+
+**DO:**
+- Put ALL game-specific logic in `plugins/*.js` files
+- Extend the plugin API in `src/main/pluginLoader.ts` when adding new capabilities
+- Make the main application game-agnostic
+
+**DON'T:**
+- Hardcode game-specific rules in main application code (e.g., `if (game === 'cyberpunk')`)
+- Add game detection logic outside of plugins
+- Create game-specific UI components without plugin abstraction
+
+**When adding game features:**
+1. Extend `pluginLoader.ts` with a new generic hook/method
+2. Implement the logic in the specific game's plugin file
+3. Never add game-specific conditionals to main code
+
+### Rule 2: Process Boundaries
+
+**Main Process** (`src/main/`):
+- Handles OS interactions, file system, plugin execution
+- Exposes IPC handlers via `ipcMain.handle` in `src/main/index.ts`
+- Manages plugin sandboxing via `pluginLoader.ts`
+
+**Renderer Process** (`src/renderer/`):
+- React UI components only
+- Communicates with Main ONLY via `window.electron` (exposed by Preload)
+- NO direct Node.js access
+
+**Preload Process** (`src/preload/`):
+- Defines IPC bridge between Main and Renderer
+- Exposes `api` object to `window.electron`
+
+**IPC Communication Pattern:**
+1. Define method in `PluginManager` or `SettingsManager` (`src/main/`)
+2. Add `ipcMain.handle` in `src/main/index.ts`
+3. Add function to `api` object in `src/preload/index.ts`
+4. Use via `(window as any).electron` in Renderer
+
+### Rule 3: Plugin Sandboxing
+
+**Plugins run in `vm2` sandbox:**
+- NO direct Node.js access (`fs`, `child_process`, etc.)
+- MUST use `sandbox.manager` API for all operations
+- Can use `require('path')` for path manipulation
+- Use `sandbox.console.log/error` for logging
+
+**Available Sandbox APIs:**
+- `sandbox.manager.fileExists(path)` - Check if file exists
+- `sandbox.manager.isDirectory(path)` - Check if path is directory
+- `sandbox.manager.readDir(path)` - List directory contents
+- `sandbox.manager.downloadFile(url, destPath)` - Download file
+- `sandbox.manager.deleteFile(path)` - Delete file
+- `sandbox.manager.removeDir(path)` - Remove directory
+- `sandbox.manager.symlinkFile(src, dest)` - Create symlink (PREFERRED for mod installation)
+- `sandbox.manager.openUrl(url)` - Open URL in browser
+- `sandbox.manager.showAlert(title, message)` - Show native alert
+- `sandbox.manager.installMod(zipPath, options)` - Manual mod install (rare)
+
+### Rule 4: Localization
+
+**ALWAYS localize user-facing text:**
+- Use `src/renderer/src/utils/i18n.ts`
+- Supports: English (`en`) and Dutch (`nl`)
+- Update BOTH languages when adding new keys
+- Never hardcode user-visible strings in components
+
+### Rule 5: Mod Installation
+
+**ALWAYS prefer symlinks:**
+- Use `sandbox.manager.symlinkFile()` in plugin `install()` hooks
+- Symlinks save disk space and enable easy mod management
+- Only copy files when symlinks are not possible
+
+---
+
+## Development Workflows
+
+### Package Management
+- Use `pnpm` (never `npm` or `yarn`)
+- Run `pnpm run typecheck` after making changes
+- Project has separate TypeScript configs: Node (Main) and Web (Renderer)
+
+### Starting Development
+```bash
+pnpm run dev  # Starts Electron dev server
+```
+
+### Type Checking
+```bash
+pnpm run typecheck  # Validates TypeScript across all contexts
+```
+
+---
+
+## Plugin Development
+
+### Plugin Structure
+
+**Location Options:**
+- Single file: `plugins/mygame.js`
+- Folder (for bundled resources): `plugins/mygame/index.js`
+
+**Required Export:**
+```javascript
+module.exports.default = {
+  id: 'mygame',              // Internal ID (no spaces, lowercase)
+  name: 'My Game',           // Display name
+  version: '1.0.0',          // Plugin version
+  author: 'Author Name',
+  steamAppId: '123450',       // Steam App ID for detection
+  executable: 'bin/game.exe', // Relative path from Game Root
+  
+  // Optional metadata
+  modSources: [               // Download source links
+    { text: 'Nexus Mods', url: 'https://www.nexusmods.com/mygame' }
+  ],
+  modFileExtensions: ['zip', 'rar', '7z', 'pak'], // Default: ['zip', 'rar', '7z', 'mod']
+  iconUrl: 'https://...',     // Game icon URL
+  theme: {                    // UI theme colors
+    accent: '168, 85, 247',   // RGB values as string
+    bgStart: '20, 10, 30'
+  },
+  
+  // Required lifecycle hooks
+  detect: async (candidates) => { /* ... */ },
+  prepareForModding: async (gamePath) => { /* ... */ },
+  checkRequirements: async (gamePath) => { /* ... */ },
+  install: async (sourcePath, gamePath, originalZipPath) => { /* ... */ },
+  
+  // Optional hooks
+  determineModType: async (stagingPath) => { /* ... */ },
+  analyzeArchive: (files) => { /* ... */ },
+  onUnmanage: async (gamePath) => { /* ... */ }
+}
+```
+
+### Lifecycle Hooks
+
+**`detect(candidates: string[]): Promise<string | null>`**
+- Checks if game is installed in candidate Steam library paths
+- Returns absolute path to Game Root, or `null` if not found
+- Example: Check for executable at `path.join(folder, 'Game', 'bin', 'game.exe')`
+
+**`prepareForModding(gamePath: string): Promise<void>`**
+- Runs when user first selects game or clicks "Prepare for Modding"
+- Download mod loaders, create folders, set up dependencies
+- Use `sandbox.manager.downloadFile()` for downloads
+
+**`checkRequirements(gamePath: string): Promise<{valid: boolean, message?: string, links?: Array<{text: string, url: string}>}>`**
+- Verifies game is ready for mods (loader installed, etc.)
+- Returns `{valid: true}` if ready
+- Returns `{valid: false, message: '...', links: [...]}` if requirements missing
+
+**`install(sourcePath: string, gamePath: string, originalZipPath: string): Promise<boolean>`**
+- Installs mod from staging area to game folder
+- MUST use `sandbox.manager.symlinkFile()` where possible
+- Returns `true` on success
+
+**`determineModType(stagingPath: string): Promise<string | object | null>` (Optional)**
+- Identifies mod type from extracted files
+- Can return string or object with metadata:
+  ```javascript
+  {
+    type: 'Loader',
+    nexusId: '123',
+    nexusDomain: 'site',  // Optional: override Nexus domain
+    sourceUrl: 'https://...',
+    note: 'Warning message'
+  }
+  ```
+
+**`analyzeArchive(files: string[]): object | null` (Optional)**
+- Fast-scan archive without extraction
+- Returns metadata object (same structure as `determineModType`)
+- Useful for identifying tools immediately on drag-drop
+
+**`onUnmanage(gamePath: string): Promise<void>` (Optional)**
+- Cleanup hook when user unmanages game
+- Remove empty folders, config files created by manager
+
+---
+
+## Code Conventions
+
+### React / UI
+- **Components**: Functional components with Hooks
+- **Styling**: Tailwind CSS classes
+- **State**: `useState`/`useEffect` for local state
+- **Global State**: Minimal; fetch from Main process on demand
+
+### TypeScript
+- Main process: Node.js types (`src/main/`)
+- Renderer: Web types (`src/renderer/`)
+- Run `pnpm run typecheck` before committing
+
+### File Organization
+- Plugins: `plugins/*.js` or `plugins/*/index.js`
+- Main process: `src/main/`
+- Renderer: `src/renderer/src/`
+- Preload: `src/preload/`
+- Shared types: `src/shared/`
+
+---
+
+## Key Files Reference
+
+| File | Purpose |
+|------|---------|
+| `src/main/pluginLoader.ts` | Plugin sandboxing, API injection, lifecycle management |
+| `src/main/index.ts` | Main process entry, IPC handlers |
+| `src/preload/index.ts` | IPC bridge definition |
+| `src/renderer/src/App.tsx` | Main UI entry point |
+| `src/renderer/src/utils/i18n.ts` | Localization system |
+| `plugins/` | Game-specific plugin implementations |
+
+---
+
+## Common Tasks
+
+### Adding a New Game
+
+1. Create `plugins/<game_id>.js`
+2. Implement required hooks: `detect`, `prepareForModding`, `checkRequirements`, `install`
+3. Test game detection and mod installation
+4. **MANDATORY**: Update `README.md` "Supported Games" table with:
+   - Game name
+   - Author
+   - Version
+   - Notes (mod loader requirements, version limitations, etc.)
+
+### Adding a Generic Feature
+
+1. Extend `src/main/pluginLoader.ts` with new hook/method
+2. Update relevant plugins to use the new capability
+3. Expose UI triggers via IPC (if needed):
+   - Add to Main process manager
+   - Add `ipcMain.handle` in `src/main/index.ts`
+   - Add to `api` in `src/preload/index.ts`
+   - Use in Renderer via `window.electron`
+
+### Fixing GitHub API Rate Limits
+
+When encountering 403 rate limit errors:
+- The app should handle rate limits gracefully
+- Consider adding retry logic with exponential backoff
+- For authenticated requests, use GitHub token if available
+- Cache API responses when possible
+- Show user-friendly error messages instead of crashing
+
+---
+
+## Error Handling
+
+- **GitHub API**: Handle 403 rate limits gracefully, show user-friendly messages
+- **Plugin Errors**: Catch and log via `sandbox.console.error`, don't crash main process
+- **File Operations**: Always check if files/directories exist before operations
+- **User Feedback**: Use `sandbox.manager.showAlert()` for critical errors in plugins
+
+---
+
+## Testing Checklist
+
+Before submitting changes:
+- [ ] Run `pnpm run typecheck` - no TypeScript errors
+- [ ] Test in dev mode (`pnpm run dev`)
+- [ ] Verify localization keys exist in both `en` and `nl`
+- [ ] Check plugin sandbox isolation (no direct Node.js access)
+- [ ] Verify IPC communication works (Main ↔ Renderer)
+- [ ] Test mod installation with symlinks
+- [ ] Update `README.md` if adding/updating plugins

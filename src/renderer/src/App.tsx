@@ -84,7 +84,7 @@ function App() {
     }
   }, [isTutorialActive, tutorialMods])
 
-   const handleTutorialApiKey = async (apiKey: string) => {
+  const handleTutorialApiKey = async (apiKey: string) => {
     // 1. Save locally
     const merged = { ...settings, nexusApiKey: apiKey }
     setSettings(merged)
@@ -96,13 +96,17 @@ function App() {
     try {
       const fetchMod = async (mod: Mod) => {
         if (!mod.nexusId) return mod
-        const meta = await (window as any).electron.fetchNexusMetadata(apiKey, 'subnautica', mod.nexusId)
+        const meta = await (window as any).electron.fetchNexusMetadata(
+          apiKey,
+          'subnautica',
+          mod.nexusId
+        )
         if (meta && meta.name) {
           return {
             ...mod,
             name: meta.name,
             version: meta.version || mod.version,
-            author: meta.user ? meta.user.name : (meta.author || mod.author),
+            author: meta.user ? meta.user.name : meta.author || mod.author,
             description: meta.summary,
             imageUrl: meta.picture_url
           }
@@ -115,7 +119,7 @@ function App() {
       setTutorialMods(updated)
       setMods(updated) // Force immediate update
     } catch (e) {
-      console.error("Tutorial fetch failed", e)
+      console.error('Tutorial fetch failed', e)
     }
   }
 
@@ -226,7 +230,7 @@ function App() {
     // Initial startup sequence
     const init = async () => {
       await loadAppVersion()
-      
+
       const s = await (window as any).electron.getSettings()
       setSettings(s)
 
@@ -241,7 +245,7 @@ function App() {
         refreshGames()
       }
     }
-    
+
     init()
   }, [])
 
@@ -291,18 +295,16 @@ function App() {
     }
   }, [])
 
-
-
   const handleTutorialComplete = async (newSettings: Partial<IAppSettings>) => {
     const merged = { ...settings, ...newSettings, tutorialCompleted: true }
     setSettings(merged)
     await (window as any).electron.saveSettings(merged)
-    
+
     // Reset state before leaving tutorial
     setIsTutorialActive(false)
-    setSelectedGame(null) 
-    setGames([]) 
-    
+    setSelectedGame(null)
+    setGames([])
+
     // Load real environment
     refreshGames(true)
   }
@@ -332,9 +334,9 @@ function App() {
     if (isTutorialActive && !force) return
     const list = await (window as any).electron.getExtensions()
     setGames(list)
-    
+
     // Auto-select first game if none selected or current selection is invalid (e.g. dummy game)
-    const currentIsValid = list.find(g => g.id === selectedGame)
+    const currentIsValid = list.find((g) => g.id === selectedGame)
     if (list.length > 0 && (!selectedGame || !currentIsValid)) {
       setSelectedGame(list[0].id)
     }
@@ -351,7 +353,7 @@ function App() {
       setMods([])
     }
   }
-    
+
   const handleExportModpack = async () => {
     if (!selectedGame) return
     setIsManaging(true)
@@ -471,7 +473,11 @@ function App() {
 
     await toast.promise(
       (async () => {
-        await (window as any).electron.installModDirect(currentGame.id, installPreview.file, options)
+        await (window as any).electron.installModDirect(
+          currentGame.id,
+          installPreview.file,
+          options
+        )
         setInstallPreview(null)
         loadMods(currentGame.id)
         refreshGames() // Refresh game details (e.g. tool buttons)
@@ -606,6 +612,14 @@ function App() {
     try {
       const promise = (async () => {
         const updatedGames = await (window as any).electron.manageGame(selectedGame)
+
+        // Check if there's error info attached (for recoverable errors)
+        const errorInfo = (updatedGames as any).__error
+        if (errorInfo) {
+          // Remove the error info from the games array
+          delete (updatedGames as any).__error
+        }
+
         setGames(updatedGames)
         const game = (updatedGames as Game[]).find((g) => g.id === selectedGame)
         if (game && game.managed) {
@@ -613,17 +627,37 @@ function App() {
           setMods(list)
           await checkHealth(selectedGame)
         }
+
+        // Return success, with error info if present
+        return { success: true, error: errorInfo?.message }
       })()
+
+      // Dismiss the initial loading toast before starting the promise toast
+      toast.dismiss(toastId)
 
       await toast.promise(
         promise,
         {
           pending: 'Deploying mod files...',
-          success: t.gameManaged,
-          error: 'Setup failed'
+          success: {
+            render: (result: any) => {
+              // If there's an error, return a message that includes the error
+              if (result?.error) {
+                return `${t.gameManaged} ${result.error}`
+              }
+              return t.gameManaged
+            }
+          },
+          error: {
+            render({ data }: { data: any }) {
+              // Extract error message, defaulting to a generic message
+              const errorMessage = data?.message || data?.toString() || 'Setup failed'
+              return errorMessage
+            }
+          }
         },
         {
-          theme: 'dark',
+          theme: 'dark'
           // progress is updated via toast.update elsewhere (onDownloadProgress)
         }
       )

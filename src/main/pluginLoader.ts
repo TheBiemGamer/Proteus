@@ -29,6 +29,7 @@ export class PluginManager extends EventEmitter {
   private currentPluginPath: string | null = null
   private activeModId: string | null = null
   private activeGameId: string | null = null
+  private sandboxErrors: Error[] = [] // Track errors during sandbox execution
 
   private nexusApiKey = ''
   private deploymentMethod: 'symlink' | 'hardlink' | 'copy' = 'symlink'
@@ -271,6 +272,46 @@ export class PluginManager extends EventEmitter {
             const response = await axios.get(url)
             return response.data
           } catch (e: any) {
+            // Handle GitHub API rate limit errors
+            if (e.response?.status === 403 && e.response?.data?.message) {
+              const message = e.response.data.message
+              if (message.includes('rate limit exceeded') || message.includes('API rate limit')) {
+                const resetTime = e.response.headers['x-ratelimit-reset']
+                let errorMessage = 'GitHub API rate limit exceeded. '
+
+                if (resetTime) {
+                  const resetDate = new Date(parseInt(resetTime) * 1000)
+                  const now = new Date()
+                  const minutesUntilReset = Math.ceil((resetDate.getTime() - now.getTime()) / 60000)
+                  errorMessage += `Please try again in ${minutesUntilReset} minute${minutesUntilReset !== 1 ? 's' : ''}. `
+                }
+
+                errorMessage +=
+                  'You can continue using the mod manager, but automatic mod loader installation will be skipped for now.'
+
+                const rateLimitError = new Error(errorMessage)
+                ;(rateLimitError as any).isRateLimit = true
+                ;(rateLimitError as any).isRecoverable = true
+
+                // Track this error even if plugin catches it
+                self.sandboxErrors.push(rateLimitError)
+
+                throw rateLimitError
+              }
+            }
+
+            // Handle other GitHub API errors
+            if (e.response?.status && e.response?.status >= 400) {
+              const errorMessage = `Failed to fetch from GitHub API: ${e.response.status} ${e.response.statusText}`
+              const apiError = new Error(errorMessage)
+              ;(apiError as any).isRecoverable = true
+
+              // Track this error even if plugin catches it
+              self.sandboxErrors.push(apiError)
+
+              throw apiError
+            }
+
             console.error('Fetch failed', e)
             throw e
           }
@@ -451,8 +492,49 @@ export class PluginManager extends EventEmitter {
 
     try {
       await this.runCommand(gameId, 'prepareForModding', this.gamePaths[gameId])
-    } catch (e) {
+
+      // If we get here, prepareForModding succeeded, but check for tracked errors anyway
+      if (this.sandboxErrors.length > 0) {
+        // Find rate limit errors first (most common)
+        const rateLimitError = this.sandboxErrors.find((e: any) => e.isRateLimit)
+        if (rateLimitError) {
+          const error = new Error(rateLimitError.message)
+          ;(error as any).isRateLimit = true
+          ;(error as any).isRecoverable = true
+          ;(error as any).gameManaged = true
+          throw error
+        }
+
+        // Otherwise, use the first recoverable error
+        const recoverableError = this.sandboxErrors.find((e: any) => e.isRecoverable)
+        if (recoverableError) {
+          const error = new Error(recoverableError.message)
+          ;(error as any).isRecoverable = true
+          ;(error as any).gameManaged = true
+          throw error
+        }
+      }
+    } catch (e: any) {
       console.warn(`[PM] prepareForModding failed for ${gameId}`, e)
+
+      // Check if this is a rate limit or recoverable error that we can handle
+      if (e?.isRateLimit || e?.isRecoverable) {
+        // Game is managed, throw error for UI feedback
+        const error = new Error(e.message)
+        ;(error as any).isRecoverable = true
+        ;(error as any).gameManaged = true
+        throw error
+      }
+
+      // For non-recoverable errors, still throw but mark game as managed
+      const error = new Error(
+        `Game setup encountered an error: ${e.message || String(e)}. The game has been marked as managed, but some setup steps may have failed.`
+      )
+      ;(error as any).gameManaged = true
+      throw error
+    } finally {
+      // Clear tracked errors after checking
+      this.sandboxErrors = []
     }
 
     // 2. Auto-install Loader if present
@@ -1147,6 +1229,7 @@ export class PluginManager extends EventEmitter {
     this.activeGamePath = gamePath
     this.activeGameId = pluginId
     this.currentPluginPath = mainFile
+    this.sandboxErrors = [] // Reset error tracking for this command
 
     // NOTE: In true async context re-entrance, this global state strategy is dangerous.
     // For now, staying consistent with single-threaded JS node event loop.
