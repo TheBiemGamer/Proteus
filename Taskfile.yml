@@ -1,0 +1,96 @@
+version: '3'
+
+tasks:
+  default:
+    desc: Show project status and available tasks
+    silent: true
+    cmds:
+      - node scripts/dashboard.js
+      - task --list
+
+  install-pnpm:
+    desc: Installs pnpm using corepack
+    cmds:
+      - corepack enable
+      - corepack prepare pnpm@latest --activate
+    status:
+      - pnpm --version
+
+  install:
+    desc: Install dependencies
+    aliases: [i]
+    deps: [install-pnpm]
+    cmds:
+      - pnpm install
+    sources:
+      - package.json
+      - pnpm-lock.yaml
+    generates:
+      - node_modules/.modules.yaml
+
+  format:
+    desc: Format code with Prettier
+    deps: [install]
+    cmds:
+      - pnpm format
+
+  lint:
+    desc: Lint with ESLint
+    deps: [install]
+    cmds:
+      - pnpm run lint
+
+  typecheck:
+    desc: Run TypeScript type checking
+    aliases: [type]
+    deps: [install]
+    cmds:
+      - pnpm run typecheck
+
+  build:
+    desc: Build for current platform
+    deps: [install]
+    cmds:
+      - task: build:win
+        platforms: [windows]
+      - task: build:linux
+        platforms: [linux]
+      - task: build:mac
+        platforms: [darwin]
+
+  build:win:
+    desc: Build for Windows
+    deps: [install]
+    platforms: [windows]
+    cmds:
+      - pnpm run build:win
+
+  build:linux:
+    desc: Build for Linux
+    deps: [install]
+    platforms: [linux]
+    cmds:
+      - pnpm run build:linux
+
+  build:mac:
+    desc: Build for Mac
+    deps: [install]
+    platforms: [darwin]
+    cmds:
+      - pnpm run build:mac
+
+  dev:
+    desc: Start development server
+    deps: [install]
+    cmds:
+      - pnpm run dev
+
+  plugin:
+    desc: 'Create a new plugin. Usage: task plugin <game_id>'
+    vars:
+      GAME_ID: '{{.CLI_ARGS}}'
+    preconditions:
+      - sh: '[ "{{.GAME_ID}}" != "" ]'
+        msg: 'Missing game ID. Usage: task plugin <game_id>'
+    cmds:
+      - node scripts/create-plugin.js {{.GAME_ID}}

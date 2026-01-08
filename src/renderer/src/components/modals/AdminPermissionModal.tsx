@@ -86,7 +86,10 @@ export function AdminPermissionModal({
                       {alwaysAdmin && <div className="w-2.5 h-2.5 bg-white rounded-sm" />}
                     </div>
                     <span className="text-sm text-gray-200 select-none">
-                      {t.alwaysRunAsAdmin || 'Always Run as Administrator'}
+                      {t.rememberChoice || 'Remember my choice'}
+                    </span>
+                    <span className="text-xs text-gray-500 ml-auto">
+                      {alwaysAdmin ? '(Updates Settings)' : ''}
                     </span>
                   </div>
 
@@ -95,7 +98,7 @@ export function AdminPermissionModal({
                       onClick={() => onContinue(alwaysAdmin)}
                       className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 transition-colors"
                     >
-                      {t.continueAnyway || 'Continue Anyway'}
+                      {t.continueAnyway || 'Don\'t Ask Again'}
                     </button>
                     <button
                       onClick={() => onRestartAsAdmin(alwaysAdmin)}

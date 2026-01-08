@@ -23,6 +23,7 @@ interface ModListProps {
   handleDeleteMod: (mod: Mod) => void
   showSourcesMenu: boolean
   setShowSourcesMenu: (show: boolean) => void
+  readOnly?: boolean
 }
 
 export const ModList: React.FC<ModListProps> = ({
@@ -35,10 +36,11 @@ export const ModList: React.FC<ModListProps> = ({
   handleToggleMod,
   handleDeleteMod,
   showSourcesMenu,
-  setShowSourcesMenu
+  setShowSourcesMenu,
+  readOnly = false
 }) => {
   return (
-    <div className="space-y-3 pb-10">
+    <div className={`space-y-3 pb-10 ${readOnly ? 'pointer-events-none opacity-90' : ''}`}>
       {/* Health Warning Banner */}
       {!gameHealth.valid && (
         <div className="bg-yellow-500/10 border border-yellow-500/20 p-4 rounded-xl flex items-start space-x-4 mb-4">

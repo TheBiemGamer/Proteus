@@ -17,6 +17,48 @@ import { RedirectModal } from './components/modals/RedirectModal'
 import { ModDetailModal } from './components/modals/ModDetailModal'
 import { AdminPermissionModal } from './components/modals/AdminPermissionModal' // Added
 import { Game, Mod } from './types'
+import { TutorialWizard } from './components/TutorialWizard'
+
+const TUTORIAL_GAME: Game = {
+  id: 'dummy-subnautica',
+  name: 'Subnautica',
+  path: 'C:\\Games\\Subnautica',
+  detected: true,
+  managed: true,
+  iconUrl: 'https://cdn2.steamgriddb.com/icon/03ff5913b0517be4231fee8f421f2699/32/256x256.png',
+  theme: { accent: '34, 211, 238', bgStart: '12, 74, 110' },
+  modSources: []
+}
+
+const TUTORIAL_MODS: Mod[] = [
+  {
+    id: '1108',
+    name: "Tobey's BepInEx Pack for Subnautica",
+    version: '5.2.0',
+    author: 'Tobey',
+    enabled: true,
+    type: 'Loader',
+    nexusId: '1108'
+  },
+  {
+    id: '1262',
+    name: 'Nautilus',
+    version: '1.0.0',
+    author: 'Subnautica Modding',
+    enabled: true,
+    type: 'API',
+    nexusId: '1262'
+  },
+  {
+    id: '12',
+    name: 'Map',
+    version: '1.0',
+    author: 'Newman',
+    enabled: false,
+    type: 'Mod',
+    nexusId: '12'
+  }
+]
 
 function App() {
   const [games, setGames] = useState<Game[]>([])
@@ -27,6 +69,64 @@ function App() {
   const [showSourcesMenu, setShowSourcesMenu] = useState(false)
   const [appVersion, setAppVersion] = useState<string>('')
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+
+  // Tutorial State
+  const [isTutorialActive, setIsTutorialActive] = useState(false)
+  const [tutorialStep, setTutorialStep] = useState(0)
+  const [tutorialMods, setTutorialMods] = useState<Mod[]>([...TUTORIAL_MODS])
+
+  // Tutorial Mocking Effect
+  useEffect(() => {
+    if (isTutorialActive) {
+      setGames([TUTORIAL_GAME])
+      setSelectedGame(TUTORIAL_GAME.id)
+      setMods(tutorialMods)
+    }
+  }, [isTutorialActive, tutorialMods])
+
+   const handleTutorialApiKey = async (apiKey: string) => {
+    // 1. Save locally
+    const merged = { ...settings, nexusApiKey: apiKey }
+    setSettings(merged)
+    handleSaveSettings(merged) // actually saves to disk
+
+    // 2. Fetch metadata for tutorial mods
+    // IDs: 1108 (BepInEx), 1262 (Nautilus), 12 (Map)
+    // Game: subnautica
+    try {
+      const fetchMod = async (mod: Mod) => {
+        if (!mod.nexusId) return mod
+        const meta = await (window as any).electron.fetchNexusMetadata(apiKey, 'subnautica', mod.nexusId)
+        if (meta && meta.name) {
+          return {
+            ...mod,
+            name: meta.name,
+            version: meta.version || mod.version,
+            author: meta.user ? meta.user.name : (meta.author || mod.author),
+            description: meta.summary,
+            imageUrl: meta.picture_url
+          }
+        }
+        return mod
+      }
+
+      const updated = await Promise.all(tutorialMods.map(fetchMod))
+      // Update the tutorial state, which triggers usage in the UI
+      setTutorialMods(updated)
+      setMods(updated) // Force immediate update
+    } catch (e) {
+      console.error("Tutorial fetch failed", e)
+    }
+  }
+
+  // Skip mod loading if tutorial
+  useEffect(() => {
+    if (isTutorialActive) return
+    if (selectedGame) {
+      loadMods(selectedGame)
+      checkHealth(selectedGame)
+    }
+  }, [selectedGame, isTutorialActive]) // Added isTutorialActive dep
 
   useEffect(() => {
     const handleResize = () => {
@@ -82,7 +182,9 @@ function App() {
     developerMode: false,
     startMaximized: false,
     alwaysRunAsAdmin: false,
-    nexusApiKey: ''
+    suppressAdminWarning: false,
+    nexusApiKey: '',
+    tutorialCompleted: false
   })
 
   // Short helper for translation
@@ -105,23 +207,43 @@ function App() {
   useEffect(() => {
     // Listen for admin request
     const removeAdminListener = window.electron.onRequestAdminPermission(() => {
-      setShowAdminModal(true)
+      // Don't show admin modal during tutorial
+      if (!isTutorialActive) {
+        setShowAdminModal(true)
+      }
     })
     return () => {
       removeAdminListener()
     }
-  }, [])
-
-  useEffect(() => {
-    refreshGames()
-    loadSettings()
-    loadAppVersion()
-  }, [])
+  }, [isTutorialActive])
 
   const loadAppVersion = async () => {
     const v = await (window as any).electron.getAppVersion()
     setAppVersion(v)
   }
+
+  useEffect(() => {
+    // Initial startup sequence
+    const init = async () => {
+      await loadAppVersion()
+      
+      const s = await (window as any).electron.getSettings()
+      setSettings(s)
+
+      if (!s.tutorialCompleted) {
+        setIsTutorialActive(true)
+        setTutorialStep(0)
+        // Set Mock Game immediately
+        setGames([TUTORIAL_GAME])
+        setSelectedGame(TUTORIAL_GAME.id)
+        setMods(TUTORIAL_MODS)
+      } else {
+        refreshGames()
+      }
+    }
+    
+    init()
+  }, [])
 
   const handleUpdateCheck = async () => {
     console.log('User requested update check')
@@ -133,7 +255,6 @@ function App() {
         pending: 'Checking for updates...',
         success: {
           render({ data }: any) {
-            // data is the result from checkForUpdates (UpdateCheckResult | null)
             if (!data) return 'Update check completed'
             if (data.updateInfo && data.updateInfo.version !== appVersion) {
               return `Update available: ${data.updateInfo.version}`
@@ -150,7 +271,6 @@ function App() {
   }
 
   useEffect(() => {
-    // Only listen for downloaded event, as checking/available are handled by promise
     const d3 = (window as any).electron.onUpdateDownloaded(() => {
       addToast(
         <div>
@@ -171,9 +291,20 @@ function App() {
     }
   }, [])
 
-  const loadSettings = async () => {
-    const s = await (window as any).electron.getSettings()
-    setSettings(s)
+
+
+  const handleTutorialComplete = async (newSettings: Partial<IAppSettings>) => {
+    const merged = { ...settings, ...newSettings, tutorialCompleted: true }
+    setSettings(merged)
+    await (window as any).electron.saveSettings(merged)
+    
+    // Reset state before leaving tutorial
+    setIsTutorialActive(false)
+    setSelectedGame(null) 
+    setGames([]) 
+    
+    // Load real environment
+    refreshGames(true)
   }
 
   const addToast = (
@@ -188,27 +319,29 @@ function App() {
     await (window as any).electron.saveSettings(newSettings)
   }
 
-  useEffect(() => {
-    if (selectedGame) {
-      loadMods(selectedGame)
-      checkHealth(selectedGame)
-    }
-  }, [selectedGame])
-
   const checkHealth = async (gameId: string) => {
+    if (isTutorialActive) {
+      setGameHealth({ valid: true })
+      return
+    }
     const health = await (window as any).electron.validateGame(gameId)
     setGameHealth(health)
   }
 
-  const refreshGames = async () => {
+  const refreshGames = async (force = false) => {
+    if (isTutorialActive && !force) return
     const list = await (window as any).electron.getExtensions()
     setGames(list)
-    if (list.length > 0 && !selectedGame) {
+    
+    // Auto-select first game if none selected or current selection is invalid (e.g. dummy game)
+    const currentIsValid = list.find(g => g.id === selectedGame)
+    if (list.length > 0 && (!selectedGame || !currentIsValid)) {
       setSelectedGame(list[0].id)
     }
   }
 
   const loadMods = async (gameId: string) => {
+    if (isTutorialActive) return
     const game = games.find((g) => g.id === gameId)
     if (game && game.managed) {
       const list = await (window as any).electron.getMods(gameId)
@@ -218,7 +351,7 @@ function App() {
       setMods([])
     }
   }
-
+    
   const handleExportModpack = async () => {
     if (!selectedGame) return
     setIsManaging(true)
@@ -459,9 +592,15 @@ function App() {
     const cleanup = (window as any).electron.onDownloadProgress((data: any) => {
       seenUrls.add(data.url)
       const filename = data.url.split('/').pop()?.split('?')[0] || 'file'
+      // Determine if we need to reset the toast to loading or just update
+      // But toast.update keeps it open. We just need to make sure we show it.
+      // If render content matches, toast might not re-render if it thinks nothing changed?
+      // Adding progress ensures change.
       toast.update(toastId, {
-        render: `Downloading resource ${seenUrls.size}: ${filename} (${data.progress}%)`,
-        progress: data.progress / 100
+        render: `Downloading resource ${seenUrls.size}: ${filename} (${Math.round(data.progress)}%)`,
+        progress: data.progress / 100,
+        type: 'info', // Explicitly keep it as info/loading
+        isLoading: true 
       })
     })
 
@@ -474,13 +613,13 @@ function App() {
         setMods(list)
         // Refresh health check immediately after managing
         await checkHealth(selectedGame)
-        toast.update(toastId, { render: t.gameManaged, type: 'success', isLoading: false })
+        toast.update(toastId, { render: t.gameManaged, type: 'success', isLoading: false, autoClose: 3000 })
       } else {
         toast.dismiss(toastId)
       }
     } catch (e) {
       console.error(e)
-      toast.update(toastId, { render: 'Setup failed', type: 'error', isLoading: false })
+      toast.update(toastId, { render: 'Setup failed', type: 'error', isLoading: false, autoClose: 5000 })
     } finally {
       cleanup()
       setIsManaging(false)
@@ -626,6 +765,7 @@ function App() {
             handleDeleteMod={handleDeleteMod}
             showSourcesMenu={showSourcesMenu}
             setShowSourcesMenu={setShowSourcesMenu}
+            readOnly={isTutorialActive}
           />
         ) : (
           <NoGameSelected />
@@ -678,16 +818,16 @@ function App() {
         isOpen={showAdminModal}
         onClose={() => setShowAdminModal(false)}
         t={t}
-        onRestartAsAdmin={async (alwaysAdmin) => {
-          if (alwaysAdmin) {
+        onRestartAsAdmin={async (remember) => {
+          if (remember) {
             await handleSaveSettings({ ...settings, alwaysRunAsAdmin: true })
           }
           window.electron.restartAsAdmin()
           setShowAdminModal(false)
         }}
-        onContinue={async (alwaysAdmin) => {
-          if (alwaysAdmin) {
-            await handleSaveSettings({ ...settings, alwaysRunAsAdmin: true })
+        onContinue={async (remember) => {
+          if (remember) {
+            await handleSaveSettings({ ...settings, suppressAdminWarning: true })
           }
           setShowAdminModal(false)
         }}
@@ -701,6 +841,17 @@ function App() {
           handleToggleDetailMod={handleToggleDetailMod}
           currentGame={currentGame}
           t={t}
+        />
+      )}
+
+      {isTutorialActive && (
+        <TutorialWizard
+          currentStep={tutorialStep}
+          setCurrentStep={setTutorialStep}
+          onComplete={handleTutorialComplete}
+          onSkip={() => handleTutorialComplete({})}
+          onApiKeySubmit={handleTutorialApiKey}
+          tutorialMods={tutorialMods}
         />
       )}
     </div>

@@ -13,7 +13,8 @@ export class SettingsManager {
     developerMode: false,
     startMaximized: false,
     deploymentMethod: 'symlink',
-    alwaysRunAsAdmin: false
+    alwaysRunAsAdmin: false,
+    tutorialCompleted: false
   }
 
   constructor() {

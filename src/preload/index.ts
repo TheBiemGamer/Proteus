@@ -20,6 +20,8 @@ const api = {
   deleteMod: (gameId: string, modId: string) => ipcRenderer.invoke('delete-mod', gameId, modId),
   disableAllMods: (gameId: string) => ipcRenderer.invoke('disable-all-mods', gameId),
   getMods: (gameId: string) => ipcRenderer.invoke('get-mods', gameId),
+  fetchNexusMetadata: (nexusApiKey: string, gameDomain: string, nexusId: string) =>
+    ipcRenderer.invoke('fetch-nexus-metadata', nexusApiKey, gameDomain, nexusId),
   checkModUpdate: (gameId: string, modId: string) =>
     ipcRenderer.invoke('check-mod-update', gameId, modId),
   validateGame: (gameId: string) => ipcRenderer.invoke('validate-game', gameId),

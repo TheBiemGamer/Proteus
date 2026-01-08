@@ -61,4 +61,6 @@ export interface IAppSettings {
   startMaximized: boolean
   deploymentMethod: 'symlink' | 'hardlink' | 'copy'
   alwaysRunAsAdmin?: boolean
+  suppressAdminWarning?: boolean
+  tutorialCompleted: boolean
 }

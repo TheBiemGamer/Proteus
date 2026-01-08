@@ -19,6 +19,7 @@ interface GameLibraryProps {
   handleDeleteMod: (mod: Mod) => Promise<void>
   showSourcesMenu: boolean
   setShowSourcesMenu: (val: boolean) => void
+  readOnly?: boolean
 }
 
 export const GameLibrary: React.FC<GameLibraryProps> = ({
@@ -36,7 +37,8 @@ export const GameLibrary: React.FC<GameLibraryProps> = ({
   handleToggleMod,
   handleDeleteMod,
   showSourcesMenu,
-  setShowSourcesMenu
+  setShowSourcesMenu,
+  readOnly = false
 }) => {
   return (
     <div
@@ -173,6 +175,7 @@ export const GameLibrary: React.FC<GameLibraryProps> = ({
             handleDeleteMod={handleDeleteMod}
             showSourcesMenu={showSourcesMenu}
             setShowSourcesMenu={setShowSourcesMenu}
+            readOnly={readOnly}
           />
         )}
       </div>
