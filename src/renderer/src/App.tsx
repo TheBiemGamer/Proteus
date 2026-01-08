@@ -459,28 +459,31 @@ function App() {
   const confirmModInstall = async () => {
     if (!currentGame || !installPreview) return
     setIsManaging(true)
-    try {
-      // Pass metadata from preview so we don't refetch
-      const options = {
-        author: installPreview.meta.author,
-        description: installPreview.meta.description,
-        imageUrl: installPreview.meta.imageUrl,
-        version: installPreview.meta.version,
-        nexusId: installPreview.meta.nexusId,
-        autoEnable: true
-      }
-
-      await (window as any).electron.installModDirect(currentGame.id, installPreview.file, options)
-      addToast(t.modInstalled, 'success')
-      setInstallPreview(null)
-      loadMods(currentGame.id)
-      refreshGames() // Refresh game details (e.g. tool buttons)
-    } catch (e) {
-      console.error(e)
-      addToast('Install failed', 'error')
-    } finally {
-      setIsManaging(false)
+    // Pass metadata from preview so we don't refetch
+    const options = {
+      author: installPreview.meta.author,
+      description: installPreview.meta.description,
+      imageUrl: installPreview.meta.imageUrl,
+      version: installPreview.meta.version,
+      nexusId: installPreview.meta.nexusId,
+      autoEnable: true
     }
+
+    await toast.promise(
+      (async () => {
+        await (window as any).electron.installModDirect(currentGame.id, installPreview.file, options)
+        setInstallPreview(null)
+        loadMods(currentGame.id)
+        refreshGames() // Refresh game details (e.g. tool buttons)
+      })(),
+      {
+        pending: 'Installing mod...',
+        success: t.modInstalled,
+        error: 'Install failed'
+      },
+      { theme: 'dark' }
+    )
+    setIsManaging(false)
   }
 
   const handleToggleDetailMod = async () => {
@@ -592,34 +595,40 @@ function App() {
     const cleanup = (window as any).electron.onDownloadProgress((data: any) => {
       seenUrls.add(data.url)
       const filename = data.url.split('/').pop()?.split('?')[0] || 'file'
-      // Determine if we need to reset the toast to loading or just update
-      // But toast.update keeps it open. We just need to make sure we show it.
-      // If render content matches, toast might not re-render if it thinks nothing changed?
-      // Adding progress ensures change.
       toast.update(toastId, {
         render: `Downloading resource ${seenUrls.size}: ${filename} (${Math.round(data.progress)}%)`,
         progress: data.progress / 100,
-        type: 'info', // Explicitly keep it as info/loading
-        isLoading: true 
+        type: 'info',
+        isLoading: true
       })
     })
 
     try {
-      const updatedGames = await (window as any).electron.manageGame(selectedGame)
-      setGames(updatedGames)
-      const game = (updatedGames as Game[]).find((g) => g.id === selectedGame)
-      if (game && game.managed) {
-        const list = await (window as any).electron.getMods(selectedGame)
-        setMods(list)
-        // Refresh health check immediately after managing
-        await checkHealth(selectedGame)
-        toast.update(toastId, { render: t.gameManaged, type: 'success', isLoading: false, autoClose: 3000 })
-      } else {
-        toast.dismiss(toastId)
-      }
+      const promise = (async () => {
+        const updatedGames = await (window as any).electron.manageGame(selectedGame)
+        setGames(updatedGames)
+        const game = (updatedGames as Game[]).find((g) => g.id === selectedGame)
+        if (game && game.managed) {
+          const list = await (window as any).electron.getMods(selectedGame)
+          setMods(list)
+          await checkHealth(selectedGame)
+        }
+      })()
+
+      await toast.promise(
+        promise,
+        {
+          pending: 'Deploying mod files...',
+          success: t.gameManaged,
+          error: 'Setup failed'
+        },
+        {
+          theme: 'dark',
+          // progress is updated via toast.update elsewhere (onDownloadProgress)
+        }
+      )
     } catch (e) {
       console.error(e)
-      toast.update(toastId, { render: 'Setup failed', type: 'error', isLoading: false, autoClose: 5000 })
     } finally {
       cleanup()
       setIsManaging(false)
