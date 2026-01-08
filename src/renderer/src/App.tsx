@@ -463,9 +463,8 @@ function App() {
     setIsManaging(true)
 
     // Check if this is an update (existing mod with same name and nexusId)
-    const existingMod = mods.find(mod =>
-      mod.name === installPreview.meta.name &&
-      mod.nexusId === installPreview.meta.nexusId
+    const existingMod = mods.find(
+      (mod) => mod.name === installPreview.meta.name && mod.nexusId === installPreview.meta.nexusId
     )
 
     const isUpdate = !!existingMod
@@ -484,7 +483,9 @@ function App() {
       (async () => {
         if (isUpdate) {
           // For updates: uninstall old mod first, then install new one
-          console.log(`Updating mod: ${existingMod.name} (${existingMod.version} -> ${installPreview.meta.version})`)
+          console.log(
+            `Updating mod: ${existingMod.name} (${existingMod.version} -> ${installPreview.meta.version})`
+          )
           await (window as any).electron.deleteMod(currentGame.id, existingMod.id)
           await (window as any).electron.installModDirect(
             currentGame.id,
@@ -703,7 +704,12 @@ function App() {
       const updatedMods = mods.map((m) => {
         if (m.id === mod.id) {
           if (result && result.updateAvailable === true) {
-            return { ...m, updateAvailable: true, latestVersion: result.latestVersion, updateError: undefined }
+            return {
+              ...m,
+              updateAvailable: true,
+              latestVersion: result.latestVersion,
+              updateError: undefined
+            }
           } else if (result && result.error) {
             return { ...m, updateAvailable: false, updateError: result.error }
           } else {
@@ -798,7 +804,12 @@ function App() {
       if (checkResult) {
         const { result } = checkResult
         if (result && result.updateAvailable === true) {
-          return { ...mod, updateAvailable: true, latestVersion: result.latestVersion, updateError: undefined }
+          return {
+            ...mod,
+            updateAvailable: true,
+            latestVersion: result.latestVersion,
+            updateError: undefined
+          }
         } else if (result && result.error) {
           return { ...mod, updateAvailable: false, updateError: result.error }
         } else {
@@ -814,10 +825,13 @@ function App() {
     const errors = updatedMods.filter((m) => m.updateError).length
 
     if (updatesAvailable > 0) {
-      toast.success(`${updatesAvailable} mod${updatesAvailable > 1 ? 's' : ''} ${updatesAvailable > 1 ? 'have' : 'has'} updates available`, {
-        theme: 'dark',
-        autoClose: 5000
-      })
+      toast.success(
+        `${updatesAvailable} mod${updatesAvailable > 1 ? 's' : ''} ${updatesAvailable > 1 ? 'have' : 'has'} updates available`,
+        {
+          theme: 'dark',
+          autoClose: 5000
+        }
+      )
     } else if (errors === 0) {
       toast.success('All mods are up to date', { theme: 'dark' })
     }
@@ -957,10 +971,12 @@ function App() {
           isManaging={isManaging}
           settings={settings}
           t={t}
-          existingMod={mods.find(mod =>
-            mod.name === installPreview.meta.name &&
-            mod.nexusId === installPreview.meta.nexusId
-          ) || null}
+          existingMod={
+            mods.find(
+              (mod) =>
+                mod.name === installPreview.meta.name && mod.nexusId === installPreview.meta.nexusId
+            ) || null
+          }
         />
       )}
 

@@ -75,7 +75,8 @@ export const InstallPreviewModal: React.FC<InstallPreviewModalProps> = ({
             {isUpdate ? (
               <span className="px-2 py-1 bg-[rgb(var(--theme-accent))]/10 text-[rgb(var(--theme-accent))] rounded text-xs border border-[rgb(var(--theme-accent))]/20">
                 {/^\d/.test(existingMod!.version || '') ? 'v' : ''}
-                {existingMod!.version || '?.?.?'} → {/^\d/.test(installPreview.meta.version || '') ? 'v' : ''}
+                {existingMod!.version || '?.?.?'} →{' '}
+                {/^\d/.test(installPreview.meta.version || '') ? 'v' : ''}
                 {installPreview.meta.version || '?.?.?'}
               </span>
             ) : (
@@ -111,7 +112,13 @@ export const InstallPreviewModal: React.FC<InstallPreviewModalProps> = ({
             disabled={isManaging}
             className="px-6 py-2 bg-[rgb(var(--theme-accent))] hover:bg-[rgb(var(--theme-accent))]/80 text-white rounded-xl shadow-lg shadow-[rgb(var(--theme-accent))]/20 font-semibold god-transition"
           >
-            {isManaging ? (isUpdate ? t.updating || 'Updating...' : t.installing) : (isUpdate ? t.updateMod || 'Update Mod' : t.installMod)}
+            {isManaging
+              ? isUpdate
+                ? t.updating || 'Updating...'
+                : t.installing
+              : isUpdate
+                ? t.updateMod || 'Update Mod'
+                : t.installMod}
           </button>
         </div>
       </div>
