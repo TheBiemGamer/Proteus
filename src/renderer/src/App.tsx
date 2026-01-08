@@ -84,7 +84,7 @@ function App() {
     }
   }, [isTutorialActive, tutorialMods])
 
-  const handleTutorialApiKey = async (apiKey: string) => {
+   const handleTutorialApiKey = async (apiKey: string) => {
     // 1. Save locally
     const merged = { ...settings, nexusApiKey: apiKey }
     setSettings(merged)
@@ -96,17 +96,13 @@ function App() {
     try {
       const fetchMod = async (mod: Mod) => {
         if (!mod.nexusId) return mod
-        const meta = await (window as any).electron.fetchNexusMetadata(
-          apiKey,
-          'subnautica',
-          mod.nexusId
-        )
+        const meta = await (window as any).electron.fetchNexusMetadata(apiKey, 'subnautica', mod.nexusId)
         if (meta && meta.name) {
           return {
             ...mod,
             name: meta.name,
             version: meta.version || mod.version,
-            author: meta.user ? meta.user.name : meta.author || mod.author,
+            author: meta.user ? meta.user.name : (meta.author || mod.author),
             description: meta.summary,
             imageUrl: meta.picture_url
           }
@@ -119,7 +115,7 @@ function App() {
       setTutorialMods(updated)
       setMods(updated) // Force immediate update
     } catch (e) {
-      console.error('Tutorial fetch failed', e)
+      console.error("Tutorial fetch failed", e)
     }
   }
 
@@ -230,7 +226,7 @@ function App() {
     // Initial startup sequence
     const init = async () => {
       await loadAppVersion()
-
+      
       const s = await (window as any).electron.getSettings()
       setSettings(s)
 
@@ -245,7 +241,7 @@ function App() {
         refreshGames()
       }
     }
-
+    
     init()
   }, [])
 
@@ -295,16 +291,18 @@ function App() {
     }
   }, [])
 
+
+
   const handleTutorialComplete = async (newSettings: Partial<IAppSettings>) => {
     const merged = { ...settings, ...newSettings, tutorialCompleted: true }
     setSettings(merged)
     await (window as any).electron.saveSettings(merged)
-
+    
     // Reset state before leaving tutorial
     setIsTutorialActive(false)
-    setSelectedGame(null)
-    setGames([])
-
+    setSelectedGame(null) 
+    setGames([]) 
+    
     // Load real environment
     refreshGames(true)
   }
@@ -334,9 +332,9 @@ function App() {
     if (isTutorialActive && !force) return
     const list = await (window as any).electron.getExtensions()
     setGames(list)
-
+    
     // Auto-select first game if none selected or current selection is invalid (e.g. dummy game)
-    const currentIsValid = list.find((g) => g.id === selectedGame)
+    const currentIsValid = list.find(g => g.id === selectedGame)
     if (list.length > 0 && (!selectedGame || !currentIsValid)) {
       setSelectedGame(list[0].id)
     }
@@ -353,7 +351,7 @@ function App() {
       setMods([])
     }
   }
-
+    
   const handleExportModpack = async () => {
     if (!selectedGame) return
     setIsManaging(true)
@@ -461,14 +459,6 @@ function App() {
   const confirmModInstall = async () => {
     if (!currentGame || !installPreview) return
     setIsManaging(true)
-
-    // Check if this is an update (existing mod with same name and nexusId)
-    const existingMod = mods.find(
-      (mod) => mod.name === installPreview.meta.name && mod.nexusId === installPreview.meta.nexusId
-    )
-
-    const isUpdate = !!existingMod
-
     // Pass metadata from preview so we don't refetch
     const options = {
       author: installPreview.meta.author,
@@ -481,33 +471,15 @@ function App() {
 
     await toast.promise(
       (async () => {
-        if (isUpdate) {
-          // For updates: uninstall old mod first, then install new one
-          console.log(
-            `Updating mod: ${existingMod.name} (${existingMod.version} -> ${installPreview.meta.version})`
-          )
-          await (window as any).electron.deleteMod(currentGame.id, existingMod.id)
-          await (window as any).electron.installModDirect(
-            currentGame.id,
-            installPreview.file,
-            options
-          )
-        } else {
-          // Regular install
-          await (window as any).electron.installModDirect(
-            currentGame.id,
-            installPreview.file,
-            options
-          )
-        }
+        await (window as any).electron.installModDirect(currentGame.id, installPreview.file, options)
         setInstallPreview(null)
         loadMods(currentGame.id)
         refreshGames() // Refresh game details (e.g. tool buttons)
       })(),
       {
-        pending: isUpdate ? 'Updating mod...' : 'Installing mod...',
-        success: isUpdate ? t.modUpdated || 'Mod updated' : t.modInstalled,
-        error: isUpdate ? 'Update failed' : 'Install failed'
+        pending: 'Installing mod...',
+        success: t.modInstalled,
+        error: 'Install failed'
       },
       { theme: 'dark' }
     )
@@ -634,14 +606,6 @@ function App() {
     try {
       const promise = (async () => {
         const updatedGames = await (window as any).electron.manageGame(selectedGame)
-
-        // Check if there's error info attached (for recoverable errors)
-        const errorInfo = (updatedGames as any).__error
-        if (errorInfo) {
-          // Remove the error info from the games array
-          delete (updatedGames as any).__error
-        }
-
         setGames(updatedGames)
         const game = (updatedGames as Game[]).find((g) => g.id === selectedGame)
         if (game && game.managed) {
@@ -649,37 +613,17 @@ function App() {
           setMods(list)
           await checkHealth(selectedGame)
         }
-
-        // Return success, with error info if present
-        return { success: true, error: errorInfo?.message }
       })()
-
-      // Dismiss the initial loading toast before starting the promise toast
-      toast.dismiss(toastId)
 
       await toast.promise(
         promise,
         {
           pending: 'Deploying mod files...',
-          success: {
-            render: (result: any) => {
-              // If there's an error, return a message that includes the error
-              if (result?.error) {
-                return `${t.gameManaged} ${result.error}`
-              }
-              return t.gameManaged
-            }
-          },
-          error: {
-            render({ data }: { data: any }) {
-              // Extract error message, defaulting to a generic message
-              const errorMessage = data?.message || data?.toString() || 'Setup failed'
-              return errorMessage
-            }
-          }
+          success: t.gameManaged,
+          error: 'Setup failed'
         },
         {
-          theme: 'dark'
+          theme: 'dark',
           // progress is updated via toast.update elsewhere (onDownloadProgress)
         }
       )
@@ -693,77 +637,26 @@ function App() {
 
   const handleCheckUpdate = async (mod: Mod) => {
     if (!currentGame) return
+    addToast(t.checkingUpdates || 'Checking for updates...', 'info')
 
-    const promise = (async () => {
+    try {
       const result = await (window as any).electron.checkModUpdate(currentGame.id, mod.id)
 
-      // Check if mod was previously marked as having updates
-      const wasMarkedForUpdate = mod.updateAvailable
-
-      // Update the mod state based on the result
-      const updatedMods = mods.map((m) => {
-        if (m.id === mod.id) {
-          if (result && result.updateAvailable === true) {
-            return {
-              ...m,
-              updateAvailable: true,
-              latestVersion: result.latestVersion,
-              updateError: undefined
-            }
-          } else if (result && result.error) {
-            return { ...m, updateAvailable: false, updateError: result.error }
-          } else {
-            return { ...m, updateAvailable: false, updateError: undefined }
-          }
-        }
-        return m
-      })
-      setMods(updatedMods)
-
       if (result.error) {
-        throw new Error(result.error)
+        addToast(result.error, 'error')
       } else if (result.updateAvailable) {
-        return {
-          updateAvailable: true,
-          latestVersion: result.latestVersion
-        }
+        addToast(
+          `${t.updateAvailable || 'Update available'}: ${/^\d/.test(result.latestVersion) ? 'v' : ''}${result.latestVersion}`,
+          'success'
+        )
       } else if (result.supported === false) {
-        return { notSupported: true }
+        // addToast(t.updateNotSupported || 'Update check not supported', 'info')
       } else {
-        return {
-          upToDate: true,
-          wasMarkedForUpdate
-        }
+        addToast(t.upToDate || 'Mod is up to date', 'success')
       }
-    })()
-
-    await toast.promise(
-      promise,
-      {
-        pending: t.checkingUpdates || 'Checking for updates...',
-        success: {
-          render: (result: any) => {
-            if (result?.updateAvailable) {
-              return `${t.updateAvailable || 'Update available'}: ${/^\d/.test(result.latestVersion) ? 'v' : ''}${result.latestVersion}`
-            } else if (result?.upToDate) {
-              if (result.wasMarkedForUpdate) {
-                return `${t.upToDate || 'Mod is up to date'} (${t.checkCompleted || 'check completed'})`
-              }
-              return t.upToDate || 'Mod is up to date'
-            } else if (result?.notSupported) {
-              return t.updateNotSupported || 'Update check not supported'
-            }
-            return t.upToDate || 'Mod is up to date'
-          }
-        },
-        error: {
-          render: (err: any) => err.message || 'Update check failed'
-        }
-      },
-      {
-        theme: 'dark'
-      }
-    )
+    } catch (e: any) {
+      addToast(e.message || 'Update check failed', 'error')
+    }
   }
 
   const handleToggleMod = async (mod: Mod) => {
@@ -781,59 +674,6 @@ function App() {
       loadMods(selectedGame)
       refreshGames()
       addToast(t.modDeleted, 'success')
-    }
-  }
-
-  const handleCheckForUpdates = async () => {
-    if (!currentGame || !mods.length) return
-
-    const checkPromises = mods.map(async (mod) => {
-      try {
-        const result = await (window as any).electron.checkModUpdate(currentGame.id, mod.id)
-        return { mod, result }
-      } catch (error: any) {
-        return { mod, result: { error: error?.message || String(error) } }
-      }
-    })
-
-    const results = await Promise.all(checkPromises)
-
-    // Update mod states based on results
-    const updatedMods = mods.map((mod) => {
-      const checkResult = results.find((r) => r.mod.id === mod.id)
-      if (checkResult) {
-        const { result } = checkResult
-        if (result && result.updateAvailable === true) {
-          return {
-            ...mod,
-            updateAvailable: true,
-            latestVersion: result.latestVersion,
-            updateError: undefined
-          }
-        } else if (result && result.error) {
-          return { ...mod, updateAvailable: false, updateError: result.error }
-        } else {
-          return { ...mod, updateAvailable: false, updateError: undefined }
-        }
-      }
-      return mod
-    })
-
-    setMods(updatedMods)
-
-    const updatesAvailable = updatedMods.filter((m) => m.updateAvailable).length
-    const errors = updatedMods.filter((m) => m.updateError).length
-
-    if (updatesAvailable > 0) {
-      toast.success(
-        `${updatesAvailable} mod${updatesAvailable > 1 ? 's' : ''} ${updatesAvailable > 1 ? 'have' : 'has'} updates available`,
-        {
-          theme: 'dark',
-          autoClose: 5000
-        }
-      )
-    } else if (errors === 0) {
-      toast.success('All mods are up to date', { theme: 'dark' })
     }
   }
 
@@ -927,7 +767,6 @@ function App() {
             handleManageGame={handleManageGame}
             handleUnmanageGame={handleUnmanageGame}
             handleDisableAll={handleDisableAll}
-            handleCheckForUpdates={handleCheckForUpdates}
             handleInstallMod={handleInstallMod}
             setDetailMod={setDetailMod}
             handleCheckUpdate={handleCheckUpdate}
@@ -971,12 +810,6 @@ function App() {
           isManaging={isManaging}
           settings={settings}
           t={t}
-          existingMod={
-            mods.find(
-              (mod) =>
-                mod.name === installPreview.meta.name && mod.nexusId === installPreview.meta.nexusId
-            ) || null
-          }
         />
       )}
 

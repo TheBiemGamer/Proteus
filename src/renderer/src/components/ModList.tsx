@@ -92,11 +92,7 @@ export const ModList: React.FC<ModListProps> = ({
         mods.map((mod) => (
           <div
             key={mod.id}
-            className={`group glass-panel p-4 rounded-xl god-transition hover:scale-[1.01] flex items-center justify-between mb-4 shadow-lg hover:shadow-xl ${
-              mod.updateAvailable
-                ? 'bg-[rgb(var(--theme-accent))]/5 border border-[rgb(var(--theme-accent))]/30 hover:border-[rgb(var(--theme-accent))]/50'
-                : 'bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10'
-            }`}
+            className="group glass-panel bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 p-4 rounded-xl god-transition hover:scale-[1.01] flex items-center justify-between mb-4 shadow-lg hover:shadow-xl"
           >
             <div className="flex items-center space-x-5">
               {/* Status Indicator */}
@@ -122,11 +118,6 @@ export const ModList: React.FC<ModListProps> = ({
                     <span className="text-[10px] font-mono bg-white/10 text-[rgb(var(--theme-text-muted))] px-1.5 py-0.5 rounded border border-white/5">
                       {/^\d/.test(mod.version) ? 'v' : ''}
                       {mod.version}
-                    </span>
-                  )}
-                  {mod.updateAvailable && (
-                    <span className="text-[10px] font-medium bg-[rgb(var(--theme-accent))]/20 text-[rgb(var(--theme-accent))] px-1.5 py-0.5 rounded border border-[rgb(var(--theme-accent))]/30">
-                      Update Available
                     </span>
                   )}
                   {mod.sourceUrl && !mod.sourceUrl.includes('nexusmods.com') && (

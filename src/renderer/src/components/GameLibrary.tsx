@@ -12,7 +12,6 @@ interface GameLibraryProps {
   handleManageGame: () => Promise<void>
   handleUnmanageGame: () => Promise<void>
   handleDisableAll: () => Promise<void>
-  handleCheckForUpdates: () => Promise<void>
   handleInstallMod: () => Promise<void>
   setDetailMod: (mod: Mod) => void
   handleCheckUpdate: (mod: Mod) => Promise<void>
@@ -32,7 +31,6 @@ export const GameLibrary: React.FC<GameLibraryProps> = ({
   handleManageGame,
   handleUnmanageGame,
   handleDisableAll,
-  handleCheckForUpdates,
   handleInstallMod,
   setDetailMod,
   handleCheckUpdate,
@@ -118,13 +116,6 @@ export const GameLibrary: React.FC<GameLibraryProps> = ({
             </div>
 
             <div className="flex space-x-3">
-              <button
-                onClick={handleCheckForUpdates}
-                className="px-3 py-1.5 text-xs font-medium text-[rgb(var(--theme-accent))] hover:text-white bg-[rgb(var(--theme-accent))]/10 hover:bg-[rgb(var(--theme-accent))]/20 border border-[rgb(var(--theme-accent))]/30 hover:border-[rgb(var(--theme-accent))]/50 rounded transition-all"
-                title="Check all mods for updates"
-              >
-                {t.checkForUpdates || 'Check Updates'}
-              </button>
               {mods.filter((m) => m.enabled).length > 0 && (
                 <button
                   onClick={handleDisableAll}
