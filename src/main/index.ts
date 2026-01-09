@@ -35,6 +35,13 @@ pluginManager.on('auto-repair-finished', (data) => {
   }
 })
 
+pluginManager.on('games-detected', (data) => {
+  const wins = BrowserWindow.getAllWindows()
+  if (wins.length > 0) {
+    wins[0].webContents.send('games-detected', data)
+  }
+})
+
 function createWindow(): BrowserWindow {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
@@ -235,8 +242,6 @@ if (!gotTheLock) {
       console.error('Failed to setup file watcher', e)
     }
 
-    // load plugins
-    pluginManager.loadPlugins()
     // Sync Initial Settings
     const settings = settingsManager.get()
     pluginManager.setNexusApiKey(settings.nexusApiKey)
@@ -537,8 +542,48 @@ if (!gotTheLock) {
       }
     })
 
+    ipcMain.handle('get-username', async () => {
+      const os = require('os')
+      return os.userInfo().username
+    })
+
+    ipcMain.handle('browse-image', async () => {
+      const { canceled, filePaths } = await dialog.showOpenDialog({
+        properties: ['openFile'],
+        filters: [
+          { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'] }
+        ]
+      })
+
+      if (canceled || filePaths.length === 0) return { canceled: true }
+      return { canceled: false, filePath: filePaths[0] }
+    })
+
+    ipcMain.handle('download-image', async (_, url) => {
+      try {
+        const axios = require('axios')
+        const response = await axios.get(url, { responseType: 'arraybuffer' })
+        
+        const tempDir = path.join(app.getPath('userData'), 'Temp')
+        if (!require('fs').existsSync(tempDir)) {
+          require('fs').mkdirSync(tempDir, { recursive: true })
+        }
+
+        const ext = path.extname(new URL(url).pathname) || '.png'
+        const fileName = `modpack-image-${Date.now()}${ext}`
+        const filePath = path.join(tempDir, fileName)
+        
+        require('fs').writeFileSync(filePath, Buffer.from(response.data))
+        
+        return { success: true, filePath }
+      } catch (e: any) {
+        console.error('Failed to download image:', e)
+        return { success: false, error: e.message }
+      }
+    })
+
     ipcMain.handle('create-modpack-dialog', async (_, gameId, meta) => {
-      // meta includes title, author, version, description, imagePath (optional)
+      // meta includes title, author, version, description, imagePath (optional), selectedModIds (optional)
       const { canceled, filePath } = await dialog.showSaveDialog({
         defaultPath: `${(meta.title || 'modpack').replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pmm-pack`,
         filters: [{ name: 'Modpack', extensions: ['pmm-pack', 'modpack'] }]

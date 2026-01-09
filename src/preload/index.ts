@@ -41,6 +41,11 @@ const api = {
     ipcRenderer.on('auto-repair-finished', subscription)
     return () => ipcRenderer.removeListener('auto-repair-finished', subscription)
   },
+  onGamesDetected: (callback: (games: any[]) => void) => {
+    const subscription = (_event, value) => callback(value)
+    ipcRenderer.on('games-detected', subscription)
+    return () => ipcRenderer.removeListener('games-detected', subscription)
+  },
   onOpenFile: (callback: (filePath: string) => void) => {
     const subscription = (_event, value) => callback(value)
     ipcRenderer.on('open-file', subscription)
@@ -52,6 +57,9 @@ const api = {
     return () => ipcRenderer.removeListener('request-admin-permission', subscription)
   },
   restartAsAdmin: () => ipcRenderer.invoke('restart-as-admin'),
+  getUsername: () => ipcRenderer.invoke('get-username'),
+  browseImage: () => ipcRenderer.invoke('browse-image'),
+  downloadImage: (url: string) => ipcRenderer.invoke('download-image', url),
 
   // New: Toggle command
   toggleLoader: (gameId: string, enable: boolean) =>

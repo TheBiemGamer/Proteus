@@ -25,11 +25,20 @@ export class ModpackManager {
 
   async createModpack(gameId: string, meta: any, destPath: string) {
     const manifest = this.context.readManifest(gameId)
-    const enabledMods = manifest.mods.filter((m: any) => {
-      if (!m.enabled) return false
-      const type = m.type.toLowerCase()
-      return type !== 'loader' && type !== 'binaries'
-    })
+    
+    // Use selectedModIds if provided, otherwise fall back to enabled mods (excluding loaders)
+    let modsToInclude: any[]
+    if (meta.selectedModIds && Array.isArray(meta.selectedModIds)) {
+      modsToInclude = manifest.mods.filter((m: any) => meta.selectedModIds.includes(m.id))
+    } else {
+      modsToInclude = manifest.mods.filter((m: any) => {
+        if (!m.enabled) return false
+        const type = m.type.toLowerCase()
+        return type !== 'loader' && type !== 'binaries'
+      })
+    }
+    
+    const enabledMods = modsToInclude
 
     const zip = new AdmZip()
 

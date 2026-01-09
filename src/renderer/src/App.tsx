@@ -72,6 +72,7 @@ function App() {
   const [gameHealth, setGameHealth] = useState<any>({ valid: true })
   const [showSourcesMenu, setShowSourcesMenu] = useState(false)
   const [appVersion, setAppVersion] = useState<string>('')
+  const [username, setUsername] = useState<string>('')
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [showResolutionModal, setShowResolutionModal] = useState(false)
   const [suppressResolutionModal, setSuppressResolutionModal] = useState(false)
@@ -286,6 +287,10 @@ function App() {
       const s = await (window as any).electron.getSettings()
       setSettings(s)
 
+      // Fetch system username
+      const user = await (window as any).electron.getUsername()
+      setUsername(user)
+
       if (!s.tutorialCompleted) {
         setIsTutorialActive(true)
         setTutorialStep(0)
@@ -439,6 +444,16 @@ function App() {
       }
     })
 
+    const detectionListener = (window as any).electron.onGamesDetected((games: Game[]) => {
+      console.log('Games detected event received', games)
+      setGames(games)
+      // If we don't have a selected game, or current selection is invalid/dummy, select first real game
+      if (games.length > 0 && (!selectedGame || selectedGame === TUTORIAL_GAME.id)) {
+        const firstReal = games.find(g => g.id !== TUTORIAL_GAME.id)
+        if (firstReal) setSelectedGame(firstReal.id)
+      }
+    })
+
     const progressListener = window.electron.onDownloadProgress((data: any) => {
       if (repairToastId) {
         seenUrls.add(data.url)
@@ -455,9 +470,22 @@ function App() {
     return () => {
       startListener()
       finishListener()
+      detectionListener()
       progressListener()
     }
   }, [selectedGame])
+
+  const handleOpenExportModal = () => {
+    // Reset modpack metadata with username as default author
+    setModpackMeta({
+      title: '',
+      author: username,
+      version: '1.0.0',
+      description: '',
+      imagePath: ''
+    })
+    setShowExportModal(true)
+  }
 
   const handleExportModpack = async () => {
     if (!selectedGame) return
@@ -911,7 +939,7 @@ function App() {
         setSelectedGame={setSelectedGame}
         currentGame={currentGame}
         t={t}
-        setShowExportModal={setShowExportModal}
+        setShowExportModal={handleOpenExportModal}
         handlePickModpack={handlePickModpack}
       />
 
@@ -959,6 +987,7 @@ function App() {
           setModpackMeta={setModpackMeta}
           handleExportModpack={handleExportModpack}
           setShowExportModal={setShowExportModal}
+          mods={mods}
           t={t}
         />
       )}

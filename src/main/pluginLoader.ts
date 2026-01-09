@@ -65,7 +65,10 @@ export class PluginManager extends EventEmitter {
     this.settingsPath = path.join(userData, 'game-paths.json')
 
     this.loadSettings()
-    this.detectEpicGames().then((games) => (this.epicGames = games))
+    // Initialize epicGames synchronously to avoid race conditions
+    this.initEpicGames()
+    // Load plugins so they're available for game detection
+    this.loadPlugins()
 
     // Initialize Helpers
     this.modpackManager = new ModpackManager({
@@ -464,34 +467,37 @@ export class PluginManager extends EventEmitter {
 
   // --- API ---
 
-  private async detectEpicGames(): Promise<Record<string, EpicGameInfo>> {
-    const epicGames: Record<string, EpicGameInfo> = {}
-    if (fs.existsSync(this.epicGamesManifestDir)) {
-      const files = fs.readdirSync(this.epicGamesManifestDir)
-      for (const file of files) {
-        if (path.extname(file) === '.item') {
-          try {
-            const manifest = JSON.parse(
-              fs.readFileSync(path.join(this.epicGamesManifestDir, file), 'utf8')
-            )
-            if (
-              manifest.AppName &&
-              manifest.InstallLocation &&
-              manifest.CatalogNamespace &&
-              manifest.CatalogItemId
-            ) {
-              const epicAppId = `${manifest.CatalogNamespace}%3A${manifest.CatalogItemId}%3A${manifest.AppName}`
-              epicGames[manifest.AppName] = {
-                path: manifest.InstallLocation,
-                epicAppId
+  private initEpicGames() {
+    try {
+      if (fs.existsSync(this.epicGamesManifestDir)) {
+        const files = fs.readdirSync(this.epicGamesManifestDir)
+        for (const file of files) {
+          if (path.extname(file) === '.item') {
+            try {
+              const manifest = JSON.parse(
+                fs.readFileSync(path.join(this.epicGamesManifestDir, file), 'utf8')
+              )
+              if (
+                manifest.AppName &&
+                manifest.InstallLocation &&
+                manifest.CatalogNamespace &&
+                manifest.CatalogItemId
+              ) {
+                const epicAppId = `${manifest.CatalogNamespace}%3A${manifest.CatalogItemId}%3A${manifest.AppName}`
+                this.epicGames[manifest.AppName] = {
+                  path: manifest.InstallLocation,
+                  epicAppId
+                }
               }
-            }
-          } catch {}
+            } catch {}
+          }
         }
       }
+    } catch (e) {
+      console.error('Failed to detect Epic Games:', e)
     }
-    return epicGames
   }
+
 
   async autoDetectGames() {
     const candidates = [
@@ -501,16 +507,23 @@ export class PluginManager extends EventEmitter {
       'D:\\SteamLibrary\\steamapps\\common',
       'E:\\SteamLibrary\\steamapps\\common'
     ]
+    
     for (const plugin of this.plugins.values()) {
       if (!this.gamePaths[plugin.id]) {
-        const foundPath = await this.runCommand(plugin.id, 'detect', candidates)
-        if (foundPath && typeof foundPath === 'string') {
-          this.gamePaths[plugin.id] = foundPath
+        try {
+          const foundPath = await this.runCommand(plugin.id, 'detect', candidates)
+          if (foundPath && typeof foundPath === 'string') {
+            this.gamePaths[plugin.id] = foundPath
+          }
+        } catch (e) {
+          console.error(`[PluginLoader] Error running detect for ${plugin.id}:`, e)
         }
       }
     }
     this.saveSettings()
-    return this.getGamesWithDetails()
+    const games = await this.getGamesWithDetails()
+    this.emit('games-detected', games)
+    return games
   }
 
   private getGamesInternal() {
@@ -1583,9 +1596,14 @@ module.exports.default = {
   loadPlugins() {
     this.plugins.clear()
     this.pluginFiles.clear()
-    if (!fs.existsSync(this.pluginsDir)) return
+    if (!fs.existsSync(this.pluginsDir)) {
+      console.log('[PluginLoader] Plugins directory not found:', this.pluginsDir)
+      return
+    }
 
     const items = fs.readdirSync(this.pluginsDir)
+    console.log(`[PluginLoader] Found ${items.length} items in ${this.pluginsDir}`)
+    
     items.forEach((item) => {
       const fullPath = path.join(this.pluginsDir, item)
       const stats = fs.lstatSync(fullPath)
@@ -1607,6 +1625,7 @@ module.exports.default = {
 
       if (pluginFile) {
         try {
+          console.log(`[PluginLoader] Loading plugin: ${pluginFile}`)
           const code = fs.readFileSync(pluginFile, 'utf8')
           const sandboxObj = this.createSandbox() as any
           sandboxObj.sandbox = sandboxObj
@@ -1623,12 +1642,14 @@ module.exports.default = {
             const safeId = String(plugin.id)
             this.plugins.set(safeId, plugin)
             this.pluginFiles.set(safeId, pluginFile)
+            console.log(`[PluginLoader] Loaded plugin: ${safeId}`)
           }
         } catch (err) {
-          console.error(err)
+          console.error(`[PluginLoader] Failed to load plugin ${pluginFile}:`, err)
         }
       }
     })
+    console.log(`[PluginLoader] Total loaded plugins: ${this.plugins.size}`)
   }
 
   async getExtensionList() {

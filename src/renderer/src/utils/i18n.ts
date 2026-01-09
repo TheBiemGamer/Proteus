@@ -130,7 +130,13 @@ export const translations = {
     toggle: 'Toggle',
     openInExplorer: 'Open in Explorer',
     openOnNexus: 'Open on Nexus Mods',
-    copyId: 'Copy ID'
+    copyId: 'Copy ID',
+    browseImage: 'Browse',
+    imageUrl: 'Image URL',
+    downloadImage: 'Download',
+    selectMods: 'Select Mods to Include',
+    allMods: 'All Mods',
+    selectedMods: 'Selected'
   },
   nl: {
     library: 'Bibliotheek',
@@ -261,6 +267,12 @@ export const translations = {
     toggle: 'Schakelen',
     openInExplorer: 'Openen in Verkenner',
     openOnNexus: 'Openen op Nexus Mods',
-    copyId: 'ID Kopiëren'
+    copyId: 'ID Kopiëren',
+    browseImage: 'Bladeren',
+    imageUrl: 'Afbeelding URL',
+    downloadImage: 'Downloaden',
+    selectMods: 'Selecteer Mods om op te nemen',
+    allMods: 'Alle Mods',
+    selectedMods: 'Geselecteerd'
   }
 }
