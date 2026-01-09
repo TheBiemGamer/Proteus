@@ -12,6 +12,7 @@ import { NoGameSelected } from './components/NoGameSelected'
 import { DragDropOverlay } from './components/DragDropOverlay'
 import { ExportModpackModal } from './components/modals/ExportModpackModal'
 import { PreviewModpackModal } from './components/modals/PreviewModpackModal'
+import { PluginInstallModal } from './components/modals/PluginInstallModal'
 import { InstallPreviewModal } from './components/modals/InstallPreviewModal'
 import { RedirectModal } from './components/modals/RedirectModal'
 import { ModDetailModal } from './components/modals/ModDetailModal'
@@ -188,6 +189,7 @@ function App() {
   // UI States
   const [dragOver, setDragOver] = useState(false)
   const [installPreview, setInstallPreview] = useState<{ file: string; meta: any } | null>(null)
+  const [pluginPreview, setPluginPreview] = useState<{ meta: any; filePath: string } | null>(null)
   const [redirectInfo, setRedirectInfo] = useState<{
     gameId: string
     gameName: string
@@ -225,6 +227,37 @@ function App() {
 
   // Admin Modal
   const [showAdminModal, setShowAdminModal] = useState(false)
+
+  useEffect(() => {
+    const handleOpenFile = async (filePath: string) => {
+      console.log('Opening file:', filePath)
+      const toastId = toast.loading('Processing file...', { theme: 'dark' })
+      try {
+        const lower = filePath.toLowerCase()
+        if (lower.endsWith('.pmm-pack') || lower.endsWith('.modpack')) {
+          const meta = await (window as any).electron.getModpackMetadata(filePath)
+          setPreviewModpack({ ...meta, filePath })
+        } else if (lower.endsWith('.pmm-ext') || lower.endsWith('.modmanager')) {
+          const result = await (window as any).electron.getPluginMetadata(filePath)
+          if (result.valid) {
+            setPluginPreview({ meta: result, filePath })
+          } else {
+            addToast(result.error || 'Invalid extension file', 'error')
+          }
+        }
+      } catch (e: any) {
+        console.error('Failed to open file', e)
+        addToast('Failed to open file: ' + (e.message || 'Unknown error'), 'error')
+      } finally {
+        toast.dismiss(toastId)
+      }
+    }
+
+    const removeListener = window.electron.onOpenFile(handleOpenFile)
+    return () => {
+      removeListener()
+    }
+  }, [])
 
   useEffect(() => {
     // Listen for admin request
@@ -663,6 +696,29 @@ function App() {
     }
   }
 
+  const handleInstallPluginConfirm = async () => {
+    if (!pluginPreview) return
+    setIsManaging(true)
+    try {
+      const success = await (window as any).electron.installPluginDirect(pluginPreview.filePath)
+      if (success) {
+        addToast(t.extensionsInstalled || 'Extension installed successfully. Restarting...', 'success')
+        setPluginPreview(null)
+        // Extensions usually require restart to load
+        setTimeout(() => {
+            window.location.reload()
+        }, 1500)
+      } else {
+        addToast('Failed to install extension', 'error')
+      }
+    } catch (e) {
+      console.error(e)
+      addToast('Error installing extension', 'error')
+    } finally {
+      setIsManaging(false)
+    }
+  }
+
   const handleManageGame = async () => {
     if (!selectedGame) return
     setIsManaging(true)
@@ -914,6 +970,16 @@ function App() {
           isManaging={isManaging}
           t={t}
           games={games}
+        />
+      )}
+
+      {pluginPreview && (
+        <PluginInstallModal
+          pluginPreview={pluginPreview}
+          setPluginPreview={setPluginPreview}
+          handleInstallPluginConfirm={handleInstallPluginConfirm}
+          isManaging={isManaging}
+          t={t}
         />
       )}
 

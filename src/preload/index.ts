@@ -41,6 +41,11 @@ const api = {
     ipcRenderer.on('auto-repair-finished', subscription)
     return () => ipcRenderer.removeListener('auto-repair-finished', subscription)
   },
+  onOpenFile: (callback: (filePath: string) => void) => {
+    const subscription = (_event, value) => callback(value)
+    ipcRenderer.on('open-file', subscription)
+    return () => ipcRenderer.removeListener('open-file', subscription)
+  },
   onRequestAdminPermission: (callback: (data: any) => void) => {
     const subscription = (_event, value) => callback(value)
     ipcRenderer.on('request-admin-permission', subscription)
@@ -65,6 +70,9 @@ const api = {
   installExtensionDialog: () => ipcRenderer.invoke('install-extension-dialog'),
   installExtensionsConfirm: (filePath: string, selected: string[]) =>
     ipcRenderer.invoke('install-extensions-confirm', filePath, selected),
+  
+  getPluginMetadata: (filePath: string) => ipcRenderer.invoke('get-plugin-metadata', filePath),
+  installPluginDirect: (filePath: string) => ipcRenderer.invoke('install-plugin-direct', filePath),
 
   exportExtension: (gameId: string) => ipcRenderer.invoke('export-extension', gameId),
 
@@ -72,6 +80,7 @@ const api = {
   createModpack: (gameId: string, meta: any) =>
     ipcRenderer.invoke('create-modpack-dialog', gameId, meta),
   pickModpack: () => ipcRenderer.invoke('pick-modpack'),
+  getModpackMetadata: (filePath: string) => ipcRenderer.invoke('get-modpack-metadata', filePath),
   installModpack: (filePath: string) => ipcRenderer.invoke('install-modpack', filePath),
 
   getSettings: () => ipcRenderer.invoke('get-settings'),

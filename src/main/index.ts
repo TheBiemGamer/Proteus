@@ -151,7 +151,37 @@ async function checkAndPromptForAdmin(
 const gotTheLock = app.requestSingleInstanceLock()
 
 if (!gotTheLock) {
-  app.quit()
+  // If we failed to get the lock, another instance is running.
+  // Check if we need to escalate to communicate with it (UIPI bypass).
+  const settings = settingsManager.get()
+
+  if (process.platform === 'win32' && settings.alwaysRunAsAdmin) {
+    // We need to check if WE are admin. If not, relaunch as admin.
+    isWindowsAdmin().then((isAdmin) => {
+      if (!isAdmin) {
+        console.log(
+          'Second instance detected (User), but main instance is likely Admin. Relaunching as Admin to bridge signal...'
+        )
+        const exe = app.getPath('exe')
+        const args = process.argv
+          .slice(1)
+          .map((arg) => `"${arg.replace(/"/g, '\\"')}"`)
+          .join(' ')
+
+        const command = `cmd /c start "" "${exe}" ${args}`
+
+        sudo.exec(command, { name: 'Proteus Mod Manager' }, () => {
+          app.exit(0)
+        })
+      } else {
+        // We are admin, but lock failed? That means another Admin instance is running.
+        // The 'second-instance' event should have fired on the main process.
+        app.quit()
+      }
+    })
+  } else {
+    app.quit()
+  }
 } else {
   app.on('second-instance', (_event, commandLine) => {
     const mainWindow = BrowserWindow.getAllWindows()[0]
@@ -159,7 +189,9 @@ if (!gotTheLock) {
       if (mainWindow.isMinimized()) mainWindow.restore()
       mainWindow.focus()
       const file = commandLine.find((arg) =>
-        ['.pmm-pack', '.modpack', '.pmm-ext', '.modmanager'].some((ext) => arg.endsWith(ext))
+        ['.pmm-pack', '.modpack', '.pmm-ext', '.modmanager'].some((ext) =>
+          arg.toLowerCase().endsWith(ext)
+        )
       )
       if (file) {
         mainWindow.webContents.send('open-file', file)
@@ -392,6 +424,19 @@ if (!gotTheLock) {
       }
     })
 
+    ipcMain.handle('get-plugin-metadata', async (_, filePath) => {
+      return await pluginManager.getPluginMetadata(filePath)
+    })
+
+    ipcMain.handle('install-plugin-direct', async (_, filePath) => {
+      try {
+        return await pluginManager.installExtension(filePath)
+      } catch (e) {
+        console.error(e)
+        return false
+      }
+    })
+
     ipcMain.handle('export-extensions', async (_, extensionIds) => {
       try {
         // Create a zip containing all selected extensions
@@ -437,6 +482,15 @@ if (!gotTheLock) {
     })
 
     // --- Modpack IPC ---
+
+    ipcMain.handle('get-modpack-metadata', async (_, filePath) => {
+      try {
+        return await pluginManager.getModpackMetadata(filePath)
+      } catch (e) {
+        console.error(e)
+        throw e
+      }
+    })
 
     ipcMain.handle('create-modpack-dialog', async (_, gameId, meta) => {
       // meta includes title, author, version, description, imagePath (optional)
@@ -548,12 +602,14 @@ if (!gotTheLock) {
     mainWindow.once('ready-to-show', async () => {
       try {
         const file = process.argv.find((arg) =>
-          ['.pmm-pack', '.modpack', '.pmm-ext', '.modmanager'].some((ext) => arg.endsWith(ext))
+          ['.pmm-pack', '.modpack', '.pmm-ext', '.modmanager'].some((ext) =>
+            arg.toLowerCase().endsWith(ext)
+          )
         )
         if (file) {
           setTimeout(() => {
             mainWindow.webContents.send('open-file', file)
-          }, 1500)
+          }, 500)
         }
 
         if (!settings.tutorialCompleted) {

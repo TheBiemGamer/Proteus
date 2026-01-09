@@ -1767,6 +1767,65 @@ export class PluginManager extends EventEmitter {
     return zip.toBuffer()
   }
 
+  private extractPluginMetadataFromSource(source: string) {
+    const extract = (key: string) => {
+      const regex = new RegExp(`${key}\\s*:\\s*(['"\`])(.*?)\\1`)
+      const match = source.match(regex)
+      return match ? match[2] : null
+    }
+
+    return {
+      id: extract('id'),
+      name: extract('name'),
+      version: extract('version'),
+      author: extract('author'),
+      description: extract('description'),
+      iconUrl: extract('iconUrl'),
+      // iconUrl might be a property or part of the object. 
+      // This simple regex works for simple object properties.
+    }
+  }
+
+  async getPluginMetadata(filePath: string) {
+    try {
+      const zip = new AdmZip(filePath)
+      const entries = zip.getEntries()
+      
+      // Look for index.js in a root folder, or a root .js file
+      let targetEntry: any = null
+      
+      // 1. Check for Root Folder with index.js
+      // e.g. "subnautica/index.js"
+      for (const entry of entries) {
+        if (entry.entryName.match(/^[^/]+\/index\.js$/)) {
+          targetEntry = entry
+          break
+        }
+      }
+
+      // 2. Check for root .js file
+      if (!targetEntry) {
+        for (const entry of entries) {
+          if (!entry.entryName.includes('/') && entry.entryName.endsWith('.js')) {
+            targetEntry = entry
+            break
+          }
+        }
+      }
+
+      if (targetEntry) {
+        const content = targetEntry.getData().toString('utf8')
+        const meta = this.extractPluginMetadataFromSource(content)
+        return { ...meta, valid: true }
+      }
+      
+      return { valid: false, error: 'No valid plugin file found in archive' }
+    } catch (e) {
+      console.error('Failed to read plugin metadata', e)
+      return { valid: false, error: 'Failed to read file' }
+    }
+  }
+
   async previewExtensionPackage(zipPath: string) {
     const zip = new AdmZip(zipPath)
     const entries = zip.getEntries()
