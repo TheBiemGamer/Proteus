@@ -13,6 +13,7 @@ import { ModpackManager } from './features/modpack'
 interface GameManifest {
   mods: IMod[]
   managed: boolean
+  deploymentMethod?: 'symlink' | 'hardlink' | 'copy'
 }
 
 export class PluginManager extends EventEmitter {
@@ -33,6 +34,7 @@ export class PluginManager extends EventEmitter {
 
   private nexusApiKey = ''
   private deploymentMethod: 'symlink' | 'hardlink' | 'copy' = 'symlink'
+  private repairedGames = new Set<string>()
 
   setNexusApiKey(key?: string) {
     this.nexusApiKey = key || ''
@@ -87,26 +89,89 @@ export class PluginManager extends EventEmitter {
   private getManifestPath(gameId: string): string | null {
     const gamePath = this.gamePaths[gameId]
     if (!gamePath) return null
-    return path.join(gamePath, 'modmanager.json')
+    // Priority: .pmm (Proprietary format)
+    const pmmPath = path.join(gamePath, 'modmanager.pmm')
+    if (fs.existsSync(pmmPath)) return pmmPath
+
+    // Fallback: Legacy JSON
+    const jsonPath = path.join(gamePath, 'modmanager.json')
+    if (fs.existsSync(jsonPath)) return jsonPath
+
+    // Default new
+    return pmmPath
   }
 
   private readManifest(gameId: string): GameManifest {
     const manifestPath = this.getManifestPath(gameId)
-    if (!manifestPath || !fs.existsSync(manifestPath)) {
-      return { mods: [], managed: false }
-    }
+    let data: GameManifest = { mods: [], managed: false }
+    let loadSuccess = false
+
+    if (!manifestPath) return data
+
     try {
-      return JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
-    } catch {
+      if (fs.existsSync(manifestPath)) {
+        data = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+        loadSuccess = true
+      }
+    } catch (e) {
+      console.error(`Failed to read manifest for ${gameId}:`, e)
       return { mods: [], managed: false }
     }
+
+    // Integrity Check: Verify Staging Availability
+    if (data.managed) {
+      const gameStagingDir = path.join(this.stagingDir, gameId)
+      const stagingRootExists = fs.existsSync(gameStagingDir)
+      let changed = false
+
+      data.mods.forEach((mod) => {
+        if (mod.enabled) {
+          const modStagingPath = path.join(gameStagingDir, mod.id)
+          if (!stagingRootExists || !fs.existsSync(modStagingPath)) {
+            // Mod source is missing.
+            mod.enabled = false
+            mod.error = 'Source missing'
+            changed = true
+          }
+        }
+      })
+
+      // Migration Check
+      const isLegacy = manifestPath.endsWith('.json')
+
+      if (loadSuccess && (changed || isLegacy)) {
+        this.writeManifest(gameId, data)
+        if (isLegacy) {
+          try {
+            fs.unlinkSync(manifestPath)
+          } catch {}
+        }
+      }
+    }
+
+    return data
   }
 
   private writeManifest(gameId: string, data: GameManifest) {
-    const manifestPath = this.getManifestPath(gameId)
-    if (manifestPath) {
-      fs.writeFileSync(manifestPath, JSON.stringify(data, null, 2))
+    const gamePath = this.gamePaths[gameId]
+    if (!gamePath) return
+    
+    if (!data.deploymentMethod) {
+      data.deploymentMethod = this.deploymentMethod
     }
+
+    // Sort mods: Loaders first, then Alphabetical
+    data.mods.sort((a, b) => {
+      const aIsLoader = (a.type || '').toLowerCase() === 'loader'
+      const bIsLoader = (b.type || '').toLowerCase() === 'loader'
+      if (aIsLoader && !bIsLoader) return -1
+      if (!aIsLoader && bIsLoader) return 1
+      return a.name.localeCompare(b.name)
+    })
+
+    // Always save as .pmm
+    const pmmPath = path.join(gamePath, 'modmanager.pmm')
+    fs.writeFileSync(pmmPath, JSON.stringify(data, null, 2))
   }
 
   // --- Security ---
@@ -364,6 +429,7 @@ export class PluginManager extends EventEmitter {
             sourceUrl?: string
             author?: string
             name?: string
+            type?: string
           }
         ) => {
           if (!this.activeGameId) throw new Error('No active game')
@@ -599,6 +665,8 @@ export class PluginManager extends EventEmitter {
       author?: string
       description?: string
       imageUrl?: string
+      sourceUrl?: string
+      type?: string
     }
   ): Promise<{
     displayName: string
@@ -621,16 +689,18 @@ export class PluginManager extends EventEmitter {
     let author: string = providedOptions?.author || 'Unknown'
     let description: string | undefined = providedOptions?.description
     let imageUrl: string | undefined = providedOptions?.imageUrl
-    let sourceUrl: string | undefined
+    let sourceUrl: string | undefined = providedOptions?.sourceUrl
     let nexusDomain: string | undefined
-    let type = 'mod'
+    let type = providedOptions?.type || 'mod'
     let note: string | undefined
 
     // 1. Hash Check (Primary Identification Method)
     let hashMatchFound = false
     let hashCheckStatus: 'match' | 'not-found' | 'error' | 'skipped' = 'skipped'
 
-    if (this.nexusApiKey) {
+    const isGithub = sourceUrl && sourceUrl.includes('github.com')
+
+    if (this.nexusApiKey && !isGithub) {
       try {
         const checkSlug = this.getNexusSlug(gameId)
         console.log(`[HashCheck] Checking ${path.basename(filePath)} against ${checkSlug}`)
@@ -1016,6 +1086,17 @@ export class PluginManager extends EventEmitter {
 
     // Double check specific files in extracted path if generic type
     let finalType = type
+
+    // Try plugin-specific type detection on extracted files
+    try {
+      const detectedType = await this.runCommand(gameId, 'determineModType', modStagingPath)
+      if (detectedType && typeof detectedType === 'string') {
+        finalType = detectedType
+      }
+    } catch (e) {
+      // Ignore if not implemented or fails
+    }
+
     if (finalType === 'mod') {
       if (fs.existsSync(path.join(modStagingPath, 'dinput8.dll'))) {
         finalType = 'loader'
@@ -1024,7 +1105,54 @@ export class PluginManager extends EventEmitter {
 
     const manifest = this.readManifest(gameId)
 
-    manifest.mods = manifest.mods.filter((m) => m.id !== modId)
+    // Check for existing mod to update/replace
+    let modToReplaceId: string | null = null
+
+    // 1. Try Nexus ID match
+    if (nexusId) {
+      const existing = manifest.mods.find((m) => m.nexusId === nexusId)
+      if (existing) modToReplaceId = existing.id
+    }
+
+    // 2. If not found, try Name match
+    if (!modToReplaceId) {
+      const existing = manifest.mods.find((m) => m.name === displayName)
+      if (existing) modToReplaceId = existing.id
+    }
+
+    if (modToReplaceId) {
+      const existing = manifest.mods.find((m) => m.id === modToReplaceId)
+      if (existing) {
+        let shouldReplace = false
+        // Condition 1: Missing Source
+        if (existing.error === 'Source missing') {
+          shouldReplace = true
+        }
+        // Condition 2: Version Upgrade (or just different version)
+        else if (version && existing.version && version !== existing.version) {
+          shouldReplace = true
+        } else {
+          // Default to replace for duplicates
+          shouldReplace = true
+        }
+
+        if (shouldReplace) {
+          // If ID is different, clean up the OLD staging folder
+          if (modToReplaceId !== modId) {
+            const oldStaging = path.join(this.stagingDir, gameId, modToReplaceId)
+            if (fs.existsSync(oldStaging)) {
+              try {
+                fs.rmSync(oldStaging, { recursive: true, force: true })
+              } catch {}
+            }
+          }
+        } else {
+          modToReplaceId = null
+        }
+      }
+    }
+
+    manifest.mods = manifest.mods.filter((m) => m.id !== modId && m.id !== modToReplaceId)
     manifest.mods.push({
       id: modId,
       name: displayName,
@@ -1056,6 +1184,11 @@ export class PluginManager extends EventEmitter {
     if (mod.enabled) return true
 
     const modStagingPath = path.join(this.stagingDir, gameId, modId)
+    
+    if (!fs.existsSync(modStagingPath)) {
+      throw new Error('Mod source files missing. Reinstall required.')
+    }
+
     this.activeModId = modId
 
     const result = (await this.runCommand(
@@ -1083,6 +1216,16 @@ export class PluginManager extends EventEmitter {
     this.writeManifest(gameId, updatedManifest)
 
     this.activeModId = null
+    return true
+  }
+
+  async enableAllMods(gameId: string) {
+    const manifest = this.readManifest(gameId)
+    const toEnable = manifest.mods.filter((m) => !m.enabled && m.error !== 'Source missing')
+
+    for (const mod of toEnable) {
+      await this.enableMod(gameId, mod.id)
+    }
     return true
   }
 
@@ -1139,7 +1282,17 @@ export class PluginManager extends EventEmitter {
   }
 
   async getMods(gameId: string) {
-    return this.readManifest(gameId).mods
+    const mods = this.readManifest(gameId).mods
+    return mods.sort((a, b) => {
+      // Loaders first
+      const aIsLoader = a.type?.toLowerCase() === 'loader'
+      const bIsLoader = b.type?.toLowerCase() === 'loader'
+      if (aIsLoader && !bIsLoader) return -1
+      if (!aIsLoader && bIsLoader) return 1
+
+      // Then Alphabetical
+      return a.name.localeCompare(b.name)
+    })
   }
 
   async checkModUpdate(gameId: string, modId: string) {
@@ -1202,7 +1355,7 @@ export class PluginManager extends EventEmitter {
   async analyzeFile(gameId: string, filePath: string) {
     const ext = path.extname(filePath).toLowerCase()
 
-    if (ext === '.modpack' || ext === '.json') {
+    if (ext === '.modpack' || ext === '.pmm-pack' || ext === '.json') {
       try {
         const meta = await this.modpackManager.getModpackMetadata(filePath)
         return { type: 'modpack', meta }
@@ -1251,11 +1404,38 @@ export class PluginManager extends EventEmitter {
 
   async validateGame(gameId: string) {
     try {
-      const result = (await this.runCommand(
+      let result = (await this.runCommand(
         gameId,
         'checkRequirements',
         this.gamePaths[gameId]
       )) as any
+
+      const manifest = this.readManifest(gameId)
+      const loaders = manifest.mods.filter((m) => m.type?.toLowerCase() === 'loader')
+      const hasBrokenLoaders = loaders.some((m) => m.error === 'Source missing')
+
+      // Auto-Repair Logic
+      const shouldRepair = hasBrokenLoaders || (result && result.valid === false && !loaders.length)
+
+      if (shouldRepair && !this.repairedGames.has(gameId) && manifest.managed) {
+        console.log(`[AutoRepair] Requirements missing for ${gameId}. Attempting auto-repair...`)
+        this.emit('auto-repair-started', { gameId })
+        this.repairedGames.add(gameId)
+        try {
+          await this.runCommand(gameId, 'prepareForModding', this.gamePaths[gameId])
+          // Re-check after repair
+          result = (await this.runCommand(
+            gameId,
+            'checkRequirements',
+            this.gamePaths[gameId]
+          )) as any
+        } catch (e) {
+          console.error(`[AutoRepair] Failed:`, e)
+        } finally {
+          this.emit('auto-repair-finished', { gameId })
+        }
+      }
+
       if (result && typeof result === 'object' && 'valid' in result) {
         // Clone to plain object to avoid IPC cloning errors with VM2 proxies
         let links: any[] | undefined
@@ -1522,7 +1702,7 @@ export class PluginManager extends EventEmitter {
     try {
       zip.extractAllTo(tempDir, true)
       const files = fs.readdirSync(tempDir)
-      const extName = path.basename(zipPath, '.modmanager').replace('.zip', '')
+      const extName = path.parse(zipPath).name
       const targetDir = path.join(this.pluginsDir, extName)
       if (fs.existsSync(targetDir)) fs.rmSync(targetDir, { recursive: true, force: true })
       fs.mkdirSync(targetDir, { recursive: true })

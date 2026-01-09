@@ -49,7 +49,9 @@ export class ModpackManager {
         id: mod.id,
         name: mod.name,
         nexusId: mod.nexusId,
-        version: mod.version
+        version: mod.version,
+        author: mod.author,
+        imageUrl: mod.imageUrl
       })
 
       const modStagingPath = path.join(this.context.stagingDir, gameId, mod.id)
@@ -62,7 +64,7 @@ export class ModpackManager {
       zip.addLocalFile(meta.imagePath, '', 'icon.png')
     }
 
-    zip.addFile('modpack.json', Buffer.from(JSON.stringify(packManifest, null, 2)))
+    zip.addFile('modpack.pmm', Buffer.from(JSON.stringify(packManifest, null, 2)))
 
     zip.writeZip(destPath)
     return true
@@ -71,7 +73,9 @@ export class ModpackManager {
   async getModpackMetadata(modpackPath: string) {
     try {
       const zip = new AdmZip(modpackPath)
-      const entry = zip.getEntry('modpack.json')
+      let entry = zip.getEntry('modpack.pmm')
+      if (!entry) entry = zip.getEntry('modpack.json')
+      
       if (!entry) throw new Error('Invalid Modpack')
 
       const content = zip.readAsText(entry)
@@ -100,7 +104,9 @@ export class ModpackManager {
 
   async installModpack(modpackPath: string) {
     const zip = new AdmZip(modpackPath)
-    const entry = zip.getEntry('modpack.json')
+    let entry = zip.getEntry('modpack.pmm')
+    if (!entry) entry = zip.getEntry('modpack.json')
+    
     if (!entry) throw new Error('Invalid Modpack')
     const packManifest: IModpackManifest = JSON.parse(zip.readAsText(entry))
 

@@ -18,6 +18,7 @@ const api = {
   toggleMod: (gameId: string, modId: string, enabled: boolean) =>
     ipcRenderer.invoke('toggle-mod', gameId, modId, enabled),
   deleteMod: (gameId: string, modId: string) => ipcRenderer.invoke('delete-mod', gameId, modId),
+  enableAllMods: (gameId: string) => ipcRenderer.invoke('enable-all-mods', gameId),
   disableAllMods: (gameId: string) => ipcRenderer.invoke('disable-all-mods', gameId),
   getMods: (gameId: string) => ipcRenderer.invoke('get-mods', gameId),
   fetchNexusMetadata: (nexusApiKey: string, gameDomain: string, nexusId: string) =>
@@ -29,6 +30,16 @@ const api = {
     const subscription = (_event, value) => callback(value)
     ipcRenderer.on('download-progress', subscription)
     return () => ipcRenderer.removeListener('download-progress', subscription)
+  },
+  onAutoRepairStarted: (callback: (data: { gameId: string }) => void) => {
+    const subscription = (_event, value) => callback(value)
+    ipcRenderer.on('auto-repair-started', subscription)
+    return () => ipcRenderer.removeListener('auto-repair-started', subscription)
+  },
+  onAutoRepairFinished: (callback: (data: { gameId: string }) => void) => {
+    const subscription = (_event, value) => callback(value)
+    ipcRenderer.on('auto-repair-finished', subscription)
+    return () => ipcRenderer.removeListener('auto-repair-finished', subscription)
   },
   onRequestAdminPermission: (callback: (data: any) => void) => {
     const subscription = (_event, value) => callback(value)

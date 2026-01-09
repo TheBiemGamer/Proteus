@@ -34,6 +34,7 @@ export interface IMod {
   imageUrl?: string
   note?: string
   nexusDomain?: string
+  error?: string
 }
 
 export interface IModpackMeta {
@@ -51,6 +52,8 @@ export interface IModpackManifest {
     name: string
     nexusId?: string
     version?: string
+    author?: string
+    imageUrl?: string
   }>
 }
 

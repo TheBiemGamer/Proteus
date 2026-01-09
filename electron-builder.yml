@@ -11,6 +11,15 @@ files:
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
 asarUnpack:
   - resources/**
+fileAssociations:
+  - ext: pmm-pack
+    name: Proteus Modpack
+    description: Modpack for Proteus Mod Manager
+    icon: build/icon.ico
+  - ext: pmm-ext
+    name: Proteus Extension
+    description: Extension/Plugin for Proteus Mod Manager
+    icon: build/icon.ico
 extraResources:
   - plugins/**
 win:

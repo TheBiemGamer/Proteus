@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Gamepad2, Download, FolderOpen, Box, Loader2 } from 'lucide-react'
 import { Game, Mod } from '../types'
 import { ModList } from './ModList'
@@ -12,6 +12,7 @@ interface GameLibraryProps {
   handleManageGame: () => Promise<void>
   handleUnmanageGame: () => Promise<void>
   handleDisableAll: () => Promise<void>
+  handleEnableAll: () => Promise<void>
   handleInstallMod: () => Promise<void>
   setDetailMod: (mod: Mod) => void
   handleCheckUpdate: (mod: Mod) => Promise<void>
@@ -20,6 +21,7 @@ interface GameLibraryProps {
   showSourcesMenu: boolean
   setShowSourcesMenu: (val: boolean) => void
   readOnly?: boolean
+  addToast: (message: string | React.ReactNode, type?: 'success' | 'error' | 'info' | 'warning') => void
 }
 
 export const GameLibrary: React.FC<GameLibraryProps> = ({
@@ -31,6 +33,7 @@ export const GameLibrary: React.FC<GameLibraryProps> = ({
   handleManageGame,
   handleUnmanageGame,
   handleDisableAll,
+  handleEnableAll,
   handleInstallMod,
   setDetailMod,
   handleCheckUpdate,
@@ -38,8 +41,21 @@ export const GameLibrary: React.FC<GameLibraryProps> = ({
   handleDeleteMod,
   showSourcesMenu,
   setShowSourcesMenu,
-  readOnly = false
+  readOnly = false,
+  addToast
 }) => {
+  const [isLaunching, setIsLaunching] = useState(false)
+
+  const handlePlayClick = (e: React.MouseEvent) => {
+    if (isLaunching) {
+      e.preventDefault()
+      return
+    }
+    setIsLaunching(true)
+    addToast('Launching game on Steam...', 'info')
+    setTimeout(() => setIsLaunching(false), 5000)
+  }
+
   return (
     <div
       key={currentGame.id}
@@ -71,7 +87,8 @@ export const GameLibrary: React.FC<GameLibraryProps> = ({
               <a
                 href={`steam://run/${currentGame.steamAppId}`}
                 draggable={false}
-                className="group px-4 py-2 bg-[rgb(var(--theme-accent))] hover:bg-[rgb(var(--theme-accent))]/80 text-white rounded-xl shadow-lg shadow-[rgb(var(--theme-accent))]/20 god-transition god-hover flex items-center space-x-2 no-underline"
+                onClick={handlePlayClick}
+                className={`group px-4 py-2 bg-[rgb(var(--theme-accent))] hover:bg-[rgb(var(--theme-accent))]/80 text-white rounded-xl shadow-lg shadow-[rgb(var(--theme-accent))]/20 god-transition god-hover flex items-center space-x-2 no-underline active:scale-95 active:grayscale active:brightness-75 transition-all ${isLaunching ? 'opacity-50 grayscale cursor-wait pointer-events-none' : ''}`}
               >
                 <Gamepad2 className="w-5 h-5 fill-current drop-shadow-md" />
                 <span className="font-semibold drop-shadow-md">{t.playSteam}</span>
@@ -116,12 +133,16 @@ export const GameLibrary: React.FC<GameLibraryProps> = ({
             </div>
 
             <div className="flex space-x-3">
-              {mods.filter((m) => m.enabled).length > 0 && (
+              {mods.length > 0 && (
                 <button
-                  onClick={handleDisableAll}
-                  className="px-3 py-1.5 text-xs font-medium text-rose-300 hover:text-white bg-rose-900/20 hover:bg-rose-600 border border-rose-800 hover:border-rose-500 rounded transition-all"
+                  onClick={mods.every((m) => !m.enabled) ? handleEnableAll : handleDisableAll}
+                  className={`px-3 py-1.5 text-xs font-medium rounded transition-all border ${
+                    mods.every((m) => !m.enabled)
+                      ? 'text-emerald-300 hover:text-white bg-emerald-900/20 hover:bg-emerald-600 border-emerald-800 hover:border-emerald-500'
+                      : 'text-rose-300 hover:text-white bg-rose-900/20 hover:bg-rose-600 border-rose-800 hover:border-rose-500'
+                  }`}
                 >
-                  {t.disableAll}
+                  {mods.every((m) => !m.enabled) ? 'Enable All' : t.disableAll}
                 </button>
               )}
               <button

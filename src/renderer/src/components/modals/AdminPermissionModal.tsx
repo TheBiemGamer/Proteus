@@ -98,7 +98,7 @@ export function AdminPermissionModal({
                       onClick={() => onContinue(alwaysAdmin)}
                       className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 transition-colors"
                     >
-                      {t.continueAnyway || 'Don\'t Ask Again'}
+                      {t.continueAnyway || "Don't Ask Again"}
                     </button>
                     <button
                       onClick={() => onRestartAsAdmin(alwaysAdmin)}

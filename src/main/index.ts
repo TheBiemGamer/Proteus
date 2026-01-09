@@ -20,6 +20,20 @@ pluginManager.on('download-progress', (data) => {
   }
 })
 
+pluginManager.on('auto-repair-started', (data) => {
+  const wins = BrowserWindow.getAllWindows()
+  if (wins.length > 0) {
+    wins[0].webContents.send('auto-repair-started', data)
+  }
+})
+
+pluginManager.on('auto-repair-finished', (data) => {
+  const wins = BrowserWindow.getAllWindows()
+  if (wins.length > 0) {
+    wins[0].webContents.send('auto-repair-finished', data)
+  }
+})
+
 function createWindow(): BrowserWindow {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
@@ -134,9 +148,28 @@ async function checkAndPromptForAdmin(
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
-app
-  .whenReady()
-  .then(() => {
+const gotTheLock = app.requestSingleInstanceLock()
+
+if (!gotTheLock) {
+  app.quit()
+} else {
+  app.on('second-instance', (_event, commandLine) => {
+    const mainWindow = BrowserWindow.getAllWindows()[0]
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.focus()
+      const file = commandLine.find((arg) =>
+        ['.pmm-pack', '.modpack', '.pmm-ext', '.modmanager'].some((ext) => arg.endsWith(ext))
+      )
+      if (file) {
+        mainWindow.webContents.send('open-file', file)
+      }
+    }
+  })
+
+  app
+    .whenReady()
+    .then(() => {
     // Set app user model id for windows
     electronApp.setAppUserModelId('com.biem.proteus')
 
@@ -283,15 +316,24 @@ app
         } else {
           return await pluginManager.disableMod(gameId, modId)
         }
-      } catch (e) {
+      } catch (e: any) {
         console.error(e)
-        return false
+        throw e // Propagate error to renderer
       }
     })
 
     ipcMain.handle('delete-mod', async (_, gameId, modId) => {
       try {
         return await pluginManager.deleteMod(gameId, modId)
+      } catch (e) {
+        console.error(e)
+        return false
+      }
+    })
+
+    ipcMain.handle('enable-all-mods', async (_, gameId) => {
+      try {
+        return await pluginManager.enableAllMods(gameId)
       } catch (e) {
         console.error(e)
         return false
@@ -323,7 +365,7 @@ app
     ipcMain.handle('install-extension-dialog', async (_) => {
       const { canceled, filePaths } = await dialog.showOpenDialog({
         properties: ['openFile'],
-        filters: [{ name: 'Mod Manager Extensions', extensions: ['modmanager', 'zip'] }]
+        filters: [{ name: 'Mod Manager Extensions', extensions: ['pmm-ext', 'modmanager', 'zip'] }]
       })
 
       if (canceled || filePaths.length === 0) return { canceled: true }
@@ -359,8 +401,8 @@ app
         if (!buffer) return false
 
         const { canceled, filePath } = await dialog.showSaveDialog({
-          defaultPath: `modmanager-bundle.modmanager`,
-          filters: [{ name: 'Mod Manager Extension Bundle', extensions: ['modmanager'] }]
+          defaultPath: `modmanager-bundle.pmm-ext`,
+          filters: [{ name: 'Mod Manager Extension Bundle', extensions: ['pmm-ext', 'modmanager'] }]
         })
 
         if (canceled || !filePath) return false
@@ -380,8 +422,8 @@ app
 
         // Ask user where to save
         const { canceled, filePath } = await dialog.showSaveDialog({
-          defaultPath: `${gameId}.modmanager`,
-          filters: [{ name: 'Mod Manager Extension', extensions: ['modmanager'] }]
+          defaultPath: `${gameId}.pmm-ext`,
+          filters: [{ name: 'Mod Manager Extension', extensions: ['pmm-ext', 'modmanager'] }]
         })
 
         if (canceled || !filePath) return false
@@ -399,8 +441,8 @@ app
     ipcMain.handle('create-modpack-dialog', async (_, gameId, meta) => {
       // meta includes title, author, version, description, imagePath (optional)
       const { canceled, filePath } = await dialog.showSaveDialog({
-        defaultPath: `${(meta.title || 'modpack').replace(/[^a-z0-9]/gi, '_').toLowerCase()}.modpack`,
-        filters: [{ name: 'Modpack', extensions: ['modpack'] }]
+        defaultPath: `${(meta.title || 'modpack').replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pmm-pack`,
+        filters: [{ name: 'Modpack', extensions: ['pmm-pack', 'modpack'] }]
       })
 
       if (canceled || !filePath) return false
@@ -416,7 +458,7 @@ app
     ipcMain.handle('pick-modpack', async (_) => {
       const { canceled, filePaths } = await dialog.showOpenDialog({
         properties: ['openFile'],
-        filters: [{ name: 'Modpack', extensions: ['modpack'] }]
+        filters: [{ name: 'Modpack', extensions: ['pmm-pack', 'modpack'] }]
       })
       if (canceled || filePaths.length === 0) return null
 
@@ -505,6 +547,15 @@ app
     const mainWindow = createWindow()
     mainWindow.once('ready-to-show', async () => {
       try {
+        const file = process.argv.find((arg) =>
+          ['.pmm-pack', '.modpack', '.pmm-ext', '.modmanager'].some((ext) => arg.endsWith(ext))
+        )
+        if (file) {
+          setTimeout(() => {
+            mainWindow.webContents.send('open-file', file)
+          }, 1500)
+        }
+
         if (!settings.tutorialCompleted) {
           // If tutorial is not completed, skip admin checks and updates
           // and go straight to showing the window.
@@ -551,6 +602,7 @@ app
     dialog.showErrorBox('Fatal Startup Error', err.stack || err.message || String(err))
     app.quit()
   })
+}
 
 // Quit when all windows are closed, except on macOS. There, it's common
 // for applications and their menu bar to stay active until the user quits

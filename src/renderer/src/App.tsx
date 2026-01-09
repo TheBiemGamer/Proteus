@@ -15,6 +15,8 @@ import { PreviewModpackModal } from './components/modals/PreviewModpackModal'
 import { InstallPreviewModal } from './components/modals/InstallPreviewModal'
 import { RedirectModal } from './components/modals/RedirectModal'
 import { ModDetailModal } from './components/modals/ModDetailModal'
+import { ResolutionModal } from './components/modals/ResolutionModal'
+import { ConfirmationModal } from './components/modals/ConfirmationModal'
 import { AdminPermissionModal } from './components/modals/AdminPermissionModal' // Added
 import { Game, Mod } from './types'
 import { TutorialWizard } from './components/TutorialWizard'
@@ -69,6 +71,22 @@ function App() {
   const [showSourcesMenu, setShowSourcesMenu] = useState(false)
   const [appVersion, setAppVersion] = useState<string>('')
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+  const [showResolutionModal, setShowResolutionModal] = useState(false)
+  const [suppressResolutionModal, setSuppressResolutionModal] = useState(false)
+  const [confirmationModal, setConfirmationModal] = useState<{
+    isOpen: boolean
+    title: string
+    message: string
+    confirmLabel: string
+    onConfirm: () => void
+    isDanger?: boolean
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmLabel: '',
+    onConfirm: () => {}
+  })
 
   // Tutorial State
   const [isTutorialActive, setIsTutorialActive] = useState(false)
@@ -84,7 +102,7 @@ function App() {
     }
   }, [isTutorialActive, tutorialMods])
 
-   const handleTutorialApiKey = async (apiKey: string) => {
+  const handleTutorialApiKey = async (apiKey: string) => {
     // 1. Save locally
     const merged = { ...settings, nexusApiKey: apiKey }
     setSettings(merged)
@@ -96,13 +114,17 @@ function App() {
     try {
       const fetchMod = async (mod: Mod) => {
         if (!mod.nexusId) return mod
-        const meta = await (window as any).electron.fetchNexusMetadata(apiKey, 'subnautica', mod.nexusId)
+        const meta = await (window as any).electron.fetchNexusMetadata(
+          apiKey,
+          'subnautica',
+          mod.nexusId
+        )
         if (meta && meta.name) {
           return {
             ...mod,
             name: meta.name,
             version: meta.version || mod.version,
-            author: meta.user ? meta.user.name : (meta.author || mod.author),
+            author: meta.user ? meta.user.name : meta.author || mod.author,
             description: meta.summary,
             imageUrl: meta.picture_url
           }
@@ -115,7 +137,7 @@ function App() {
       setTutorialMods(updated)
       setMods(updated) // Force immediate update
     } catch (e) {
-      console.error("Tutorial fetch failed", e)
+      console.error('Tutorial fetch failed', e)
     }
   }
 
@@ -226,7 +248,7 @@ function App() {
     // Initial startup sequence
     const init = async () => {
       await loadAppVersion()
-      
+
       const s = await (window as any).electron.getSettings()
       setSettings(s)
 
@@ -241,7 +263,7 @@ function App() {
         refreshGames()
       }
     }
-    
+
     init()
   }, [])
 
@@ -291,18 +313,16 @@ function App() {
     }
   }, [])
 
-
-
   const handleTutorialComplete = async (newSettings: Partial<IAppSettings>) => {
     const merged = { ...settings, ...newSettings, tutorialCompleted: true }
     setSettings(merged)
     await (window as any).electron.saveSettings(merged)
-    
+
     // Reset state before leaving tutorial
     setIsTutorialActive(false)
-    setSelectedGame(null) 
-    setGames([]) 
-    
+    setSelectedGame(null)
+    setGames([])
+
     // Load real environment
     refreshGames(true)
   }
@@ -332,9 +352,9 @@ function App() {
     if (isTutorialActive && !force) return
     const list = await (window as any).electron.getExtensions()
     setGames(list)
-    
+
     // Auto-select first game if none selected or current selection is invalid (e.g. dummy game)
-    const currentIsValid = list.find(g => g.id === selectedGame)
+    const currentIsValid = list.find((g) => g.id === selectedGame)
     if (list.length > 0 && (!selectedGame || !currentIsValid)) {
       setSelectedGame(list[0].id)
     }
@@ -351,7 +371,60 @@ function App() {
       setMods([])
     }
   }
-    
+
+  useEffect(() => {
+    if (!suppressResolutionModal && mods.some((m) => m.error === 'Source missing')) {
+      setShowResolutionModal(true)
+    }
+  }, [mods, suppressResolutionModal])
+
+  useEffect(() => {
+    let repairToastId: any = null
+    let seenUrls = new Set<string>()
+
+    const startListener = window.electron.onAutoRepairStarted((data: any) => {
+      if (data.gameId === selectedGame) {
+        setIsManaging(true)
+        repairToastId = toast.loading('Repairing game files...', { theme: 'dark' })
+        seenUrls = new Set<string>()
+      }
+    })
+
+    const finishListener = window.electron.onAutoRepairFinished((data: any) => {
+      if (data.gameId === selectedGame) {
+        setIsManaging(false)
+        if (repairToastId) {
+          toast.dismiss(repairToastId)
+          toast.success('Repair complete!', { autoClose: 3000, theme: 'dark' })
+          repairToastId = null
+        }
+        if (selectedGame) {
+          loadMods(selectedGame)
+          checkHealth(selectedGame)
+        }
+      }
+    })
+
+    const progressListener = window.electron.onDownloadProgress((data: any) => {
+      if (repairToastId) {
+        seenUrls.add(data.url)
+        const filename = data.url.split('/').pop()?.split('?')[0] || 'file'
+        toast.update(repairToastId, {
+          render: `Repairing: ${filename} (${Math.round(data.progress)}%)`,
+          progress: data.progress / 100,
+          type: 'info',
+          isLoading: true
+        })
+      }
+    })
+
+    return () => {
+      startListener()
+      finishListener()
+      progressListener()
+    }
+  }, [selectedGame])
+
   const handleExportModpack = async () => {
     if (!selectedGame) return
     setIsManaging(true)
@@ -471,7 +544,11 @@ function App() {
 
     await toast.promise(
       (async () => {
-        await (window as any).electron.installModDirect(currentGame.id, installPreview.file, options)
+        await (window as any).electron.installModDirect(
+          currentGame.id,
+          installPreview.file,
+          options
+        )
         setInstallPreview(null)
         loadMods(currentGame.id)
         refreshGames() // Refresh game details (e.g. tool buttons)
@@ -604,31 +681,27 @@ function App() {
     })
 
     try {
-      const promise = (async () => {
-        const updatedGames = await (window as any).electron.manageGame(selectedGame)
-        setGames(updatedGames)
-        const game = (updatedGames as Game[]).find((g) => g.id === selectedGame)
-        if (game && game.managed) {
-          const list = await (window as any).electron.getMods(selectedGame)
-          setMods(list)
-          await checkHealth(selectedGame)
-        }
-      })()
+      const updatedGames = await (window as any).electron.manageGame(selectedGame)
+      setGames(updatedGames)
+      const game = (updatedGames as Game[]).find((g) => g.id === selectedGame)
+      if (game && game.managed) {
+        const list = await (window as any).electron.getMods(selectedGame)
+        setMods(list)
+        await checkHealth(selectedGame)
+      }
 
-      await toast.promise(
-        promise,
-        {
-          pending: 'Deploying mod files...',
-          success: t.gameManaged,
-          error: 'Setup failed'
-        },
-        {
-          theme: 'dark',
-          // progress is updated via toast.update elsewhere (onDownloadProgress)
-        }
-      )
+      toast.dismiss(toastId)
+      toast.success(t.gameManaged, {
+        autoClose: 5000,
+        theme: 'dark'
+      })
     } catch (e) {
       console.error(e)
+      toast.dismiss(toastId)
+      toast.error('Setup failed', {
+        autoClose: 5000,
+        theme: 'dark'
+      })
     } finally {
       cleanup()
       setIsManaging(false)
@@ -661,10 +734,19 @@ function App() {
 
   const handleToggleMod = async (mod: Mod) => {
     if (!selectedGame) return
-    await (window as any).electron.toggleMod(selectedGame, mod.id, !mod.enabled)
-    loadMods(selectedGame)
-    refreshGames()
-    addToast(!mod.enabled ? t.modEnabled : t.modDisabled, 'info')
+    try {
+      await (window as any).electron.toggleMod(selectedGame, mod.id, !mod.enabled)
+      loadMods(selectedGame)
+      refreshGames()
+      addToast(!mod.enabled ? t.modEnabled : t.modDisabled, 'info')
+    } catch (e: any) {
+      console.error(e)
+      if (e.message && e.message.includes('source files missing')) {
+        setShowResolutionModal(true)
+      } else {
+        addToast(e.message || 'Failed to toggle mod', 'error')
+      }
+    }
   }
 
   const handleDeleteMod = async (mod: Mod) => {
@@ -677,14 +759,38 @@ function App() {
     }
   }
 
+  const handleEnableAll = async () => {
+    if (!selectedGame) return
+    setConfirmationModal({
+      isOpen: true,
+      title: 'Enable All Mods',
+      message: 'Are you sure you want to enable ALL mods for this game?',
+      confirmLabel: 'Enable All',
+      isDanger: false,
+      onConfirm: async () => {
+        await (window as any).electron.enableAllMods(selectedGame)
+        loadMods(selectedGame)
+        refreshGames()
+        addToast('All mods enabled', 'success')
+      }
+    })
+  }
+
   const handleDisableAll = async () => {
     if (!selectedGame) return
-    if (confirm(t.confirmDisableAll)) {
-      await (window as any).electron.disableAllMods(selectedGame)
-      loadMods(selectedGame)
-      refreshGames()
-      addToast(t.modsDisabled, 'warning')
-    }
+    setConfirmationModal({
+      isOpen: true,
+      title: 'Disable All Mods',
+      message: t.confirmDisableAll,
+      confirmLabel: 'Disable All',
+      isDanger: true,
+      onConfirm: async () => {
+        await (window as any).electron.disableAllMods(selectedGame)
+        loadMods(selectedGame)
+        refreshGames()
+        addToast(t.modsDisabled, 'warning')
+      }
+    })
   }
 
   const handleUnmanageGame = async () => {
@@ -694,11 +800,18 @@ function App() {
 
     const confirmMsg = t.confirmUnmanage.replace('{gamename}', game.name)
 
-    if (confirm(confirmMsg)) {
-      const updatedGames = await (window as any).electron.unmanageGame(selectedGame)
-      setGames(updatedGames)
-      setMods([]) // Clear mods view
-    }
+    setConfirmationModal({
+      isOpen: true,
+      title: 'Unmanage Game',
+      message: confirmMsg,
+      confirmLabel: 'Unmanage',
+      isDanger: true,
+      onConfirm: async () => {
+        const updatedGames = await (window as any).electron.unmanageGame(selectedGame)
+        setGames(updatedGames)
+        setMods([]) // Clear mods view
+      }
+    })
   }
 
   const currentGame = games.find((g) => g.id === selectedGame)
@@ -767,6 +880,7 @@ function App() {
             handleManageGame={handleManageGame}
             handleUnmanageGame={handleUnmanageGame}
             handleDisableAll={handleDisableAll}
+            handleEnableAll={handleEnableAll}
             handleInstallMod={handleInstallMod}
             setDetailMod={setDetailMod}
             handleCheckUpdate={handleCheckUpdate}
@@ -775,6 +889,7 @@ function App() {
             showSourcesMenu={showSourcesMenu}
             setShowSourcesMenu={setShowSourcesMenu}
             readOnly={isTutorialActive}
+            addToast={addToast}
           />
         ) : (
           <NoGameSelected />
@@ -840,6 +955,75 @@ function App() {
           }
           setShowAdminModal(false)
         }}
+      />
+
+      <ConfirmationModal
+        isOpen={confirmationModal.isOpen}
+        onClose={() => setConfirmationModal({ ...confirmationModal, isOpen: false })}
+        onConfirm={confirmationModal.onConfirm}
+        title={confirmationModal.title}
+        message={confirmationModal.message}
+        confirmLabel={confirmationModal.confirmLabel}
+        isDanger={confirmationModal.isDanger}
+      />
+
+      <ResolutionModal
+        isOpen={showResolutionModal}
+        onClose={() => setShowResolutionModal(false)}
+        title="Mod Sources Missing"
+        message="The source files for your mods are missing (likely due to an AppData reset). You cannot enable/disable mods until they are restored. Please download the mods again or reset the game configuration."
+        actions={[
+          {
+            label: 'Open Mod Pages',
+            onClick: () => {
+              mods.forEach((m) => {
+                if (m.sourceUrl) {
+                  window.electron.openUrl(m.sourceUrl)
+                } else if (m.nexusId) {
+                  let domain = m.nexusDomain
+                  if (!domain && currentGame?.modSources) {
+                    const nexusSrc = currentGame.modSources.find((s) =>
+                      s.url.includes('nexusmods.com')
+                    )
+                    if (nexusSrc) {
+                      const match = nexusSrc.url.match(/nexusmods\.com\/([^/]+)/)
+                      if (match) domain = match[1]
+                    }
+                  }
+                  if (domain) {
+                    window.electron.openUrl(`https://www.nexusmods.com/${domain}/mods/${m.nexusId}`)
+                  }
+                }
+              })
+              setShowResolutionModal(false)
+              setSuppressResolutionModal(true)
+            },
+            variant: 'secondary'
+          },
+          {
+            label: 'Reset Game',
+            onClick: async () => {
+              setShowResolutionModal(false)
+              if (selectedGame) {
+                // Unmanage silently
+                const updatedGames = await (window as any).electron.unmanageGame(selectedGame)
+                setGames(updatedGames)
+                setMods([])
+                // Remanage
+                handleManageGame()
+              }
+            },
+            variant: 'danger'
+          },
+          {
+            label: t.close,
+            onClick: () => {
+              setShowResolutionModal(false)
+              setSuppressResolutionModal(true)
+            },
+            variant: 'primary'
+          }
+        ]}
       />
 
       {detailMod && currentGame && (

@@ -80,12 +80,12 @@ module.exports.default = {
         )
       })
     ) {
-      return 'SDK Mod'
+      return 'SDK'
     }
 
     // Check for PAK Mods (.pak files)
     if (find(stagingPath, (f) => f.toLowerCase().endsWith('.pak'))) {
-      return 'PAK Mod'
+      return 'PAK'
     }
 
     // Check for Hotfixes
@@ -187,7 +187,8 @@ module.exports.default = {
           sourceUrl: sourceUrl,
           author: author,
           description: repoData.description || data.body,
-          imageUrl: data.author ? data.author.avatar_url : undefined
+          imageUrl: data.author ? data.author.avatar_url : undefined,
+          type: 'Loader'
         })
         sandbox.manager.deleteFile(zipPath)
         return true

@@ -1,4 +1,5 @@
 import React from 'react'
+import { X } from 'lucide-react'
 
 interface ExportModpackModalProps {
   modpackMeta: {
@@ -28,8 +29,23 @@ export const ExportModpackModal: React.FC<ExportModpackModalProps> = ({
         if (e.target === e.currentTarget) setShowExportModal(false)
       }}
     >
-      <div className="glass-panel border border-white/10 rounded-2xl p-6 w-full max-w-lg shadow-2xl god-transition animate-in zoom-in-95 duration-300">
-        <h3 className="text-2xl font-bold text-white mb-6">{t.exportModpack}</h3>
+      <div
+        className="glass-panel rounded-2xl p-6 w-full max-w-lg shadow-2xl god-transition animate-in zoom-in-95 duration-300 border relative"
+        style={{ borderColor: 'rgba(var(--theme-accent), 0.3)' }}
+      >
+        <button
+          onClick={() => setShowExportModal(false)}
+          className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
+        >
+          <X className="w-6 h-6" />
+        </button>
+
+        <h3
+          className="text-2xl font-bold mb-6"
+          style={{ color: 'rgb(var(--theme-accent))' }}
+        >
+          {t.exportModpack}
+        </h3>
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-400 mb-1">{t.modpackTitle}</label>
@@ -37,7 +53,7 @@ export const ExportModpackModal: React.FC<ExportModpackModalProps> = ({
               type="text"
               value={modpackMeta.title}
               onChange={(e) => setModpackMeta({ ...modpackMeta, title: e.target.value })}
-              className="w-full glass-input rounded-xl px-4 py-2 text-white"
+              className="w-full glass-input rounded-xl px-4 py-2 text-white focus:border-[rgb(var(--theme-accent))]/50 focus:ring-1 focus:ring-[rgb(var(--theme-accent))]/50 transition-all"
               placeholder="My Awesome Modpack"
             />
           </div>
@@ -47,7 +63,7 @@ export const ExportModpackModal: React.FC<ExportModpackModalProps> = ({
               type="text"
               value={modpackMeta.author}
               onChange={(e) => setModpackMeta({ ...modpackMeta, author: e.target.value })}
-              className="w-full glass-input rounded-xl px-4 py-2 text-white"
+              className="w-full glass-input rounded-xl px-4 py-2 text-white focus:border-[rgb(var(--theme-accent))]/50 focus:ring-1 focus:ring-[rgb(var(--theme-accent))]/50 transition-all"
             />
           </div>
           <div>
@@ -56,7 +72,7 @@ export const ExportModpackModal: React.FC<ExportModpackModalProps> = ({
               type="text"
               value={modpackMeta.version}
               onChange={(e) => setModpackMeta({ ...modpackMeta, version: e.target.value })}
-              className="w-full glass-input rounded-xl px-4 py-2 text-white"
+              className="w-full glass-input rounded-xl px-4 py-2 text-white focus:border-[rgb(var(--theme-accent))]/50 focus:ring-1 focus:ring-[rgb(var(--theme-accent))]/50 transition-all"
               placeholder="1.0.0"
             />
           </div>
@@ -65,7 +81,7 @@ export const ExportModpackModal: React.FC<ExportModpackModalProps> = ({
             <textarea
               value={modpackMeta.description}
               onChange={(e) => setModpackMeta({ ...modpackMeta, description: e.target.value })}
-              className="w-full glass-input rounded-xl px-4 py-2 text-white h-24"
+              className="w-full glass-input rounded-xl px-4 py-2 text-white h-24 focus:border-[rgb(var(--theme-accent))]/50 focus:ring-1 focus:ring-[rgb(var(--theme-accent))]/50 transition-all"
             />
           </div>
           <div>
@@ -75,7 +91,7 @@ export const ExportModpackModal: React.FC<ExportModpackModalProps> = ({
                 type="text"
                 value={modpackMeta.imagePath}
                 onChange={(e) => setModpackMeta({ ...modpackMeta, imagePath: e.target.value })}
-                className="flex-1 glass-input rounded-xl px-4 py-2 text-gray-400"
+                className="flex-1 glass-input rounded-xl px-4 py-2 text-gray-400 focus:border-[rgb(var(--theme-accent))]/50 focus:ring-1 focus:ring-[rgb(var(--theme-accent))]/50 transition-all"
                 placeholder="C:\Path\To\Image.png"
               />
             </div>
@@ -90,7 +106,11 @@ export const ExportModpackModal: React.FC<ExportModpackModalProps> = ({
           </button>
           <button
             onClick={handleExportModpack}
-            className="px-6 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl shadow-lg shadow-purple-900/20 font-semibold god-transition"
+            className="px-6 py-2 text-white rounded-xl shadow-lg font-semibold god-transition"
+            style={{
+              backgroundColor: 'rgb(var(--theme-accent))',
+              boxShadow: '0 4px 14px 0 rgba(var(--theme-accent), 0.39)'
+            }}
           >
             {t.export}
           </button>

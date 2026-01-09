@@ -92,7 +92,7 @@ export const ModList: React.FC<ModListProps> = ({
         mods.map((mod) => (
           <div
             key={mod.id}
-            className="group glass-panel bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 p-4 rounded-xl god-transition hover:scale-[1.01] flex items-center justify-between mb-4 shadow-lg hover:shadow-xl"
+            className={`group glass-panel bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 p-4 rounded-xl god-transition hover:scale-[1.01] flex items-center justify-between mb-4 shadow-lg hover:shadow-xl ${mod.error === 'Source missing' ? 'opacity-50 grayscale' : ''}`}
           >
             <div className="flex items-center space-x-5">
               {/* Status Indicator */}
@@ -131,7 +131,7 @@ export const ModList: React.FC<ModListProps> = ({
                       >
                         <ExternalLink className="w-4 h-4" />
                       </button>
-                      {mod.sourceUrl?.includes('github.com') && (
+                      {mod.sourceUrl?.includes('github.com') && mod.error !== 'Source missing' && (
                         <button
                           onClick={() => handleCheckUpdate(mod)}
                           className="text-[rgb(var(--theme-text-muted))] hover:text-emerald-400 transition-colors"
@@ -168,13 +168,15 @@ export const ModList: React.FC<ModListProps> = ({
                       >
                         <ExternalLink className="w-4 h-4" />
                       </button>
-                      <button
-                        onClick={() => handleCheckUpdate(mod)}
-                        className="text-gray-600 hover:text-green-400 transition-colors"
-                        title="Check for Updates"
-                      >
-                        <RefreshCw className="w-4 h-4" />
-                      </button>
+                      {mod.error !== 'Source missing' && (
+                        <button
+                          onClick={() => handleCheckUpdate(mod)}
+                          className="text-gray-600 hover:text-green-400 transition-colors"
+                          title="Check for Updates"
+                        >
+                          <RefreshCw className="w-4 h-4" />
+                        </button>
+                      )}
                     </>
                   )}
                 </div>
@@ -195,7 +197,12 @@ export const ModList: React.FC<ModListProps> = ({
                   {mod.author && mod.author !== 'Unknown' && (
                     <span className="text-xs text-gray-500">by {mod.author}</span>
                   )}
-                  {mod.enabled ? (
+                  {mod.error === 'Source missing' ? (
+                    <span className="text-xs text-rose-400 font-medium flex items-center">
+                      <AlertTriangle className="w-3 h-3 mr-1.5" />
+                      Files Missing
+                    </span>
+                  ) : mod.enabled ? (
                     <span className="text-xs text-emerald-500 font-medium flex items-center">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span>
                       Enabled

@@ -127,7 +127,13 @@ export const ModDetailModal: React.FC<ModDetailModalProps> = ({
                 className="px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-200 rounded-xl font-medium border border-white/5 flex items-center space-x-2 god-transition"
               >
                 <ExternalLink className="w-4 h-4" />
-                <span>{t.openInExplorer}</span>
+                <span>
+                  {detailMod.sourceUrl.includes('github.com')
+                    ? 'GitHub'
+                    : detailMod.sourceUrl.startsWith('http')
+                      ? 'Open Source'
+                      : t.openInExplorer}
+                </span>
               </button>
             )}
             <button
