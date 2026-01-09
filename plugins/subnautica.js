@@ -25,9 +25,17 @@ module.exports.default = {
   detect: async (candidates) => {
     const path = require('path')
     for (const folder of candidates) {
-      const check = path.join(folder, 'Subnautica', 'Subnautica.exe')
-      if (sandbox.manager.fileExists(check)) {
-        return path.join(folder, 'Subnautica')
+      // Steam: steamapps/common/Subnautica/Subnautica.exe
+      const steamPath = path.join(folder, 'Subnautica')
+      const steamExe = path.join(steamPath, 'Subnautica.exe')
+      if (sandbox.manager.fileExists(steamExe)) {
+        return steamPath
+      }
+
+      // Epic: Epic Games/Subnautica/Subnautica.exe
+      const epicExe = path.join(folder, 'Subnautica.exe')
+      if (sandbox.manager.fileExists(epicExe)) {
+        return folder
       }
     }
     return null

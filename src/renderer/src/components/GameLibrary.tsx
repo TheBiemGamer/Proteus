@@ -52,7 +52,14 @@ export const GameLibrary: React.FC<GameLibraryProps> = ({
       return
     }
     setIsLaunching(true)
-    addToast('Launching game on Steam...', 'info')
+    if (currentGame.platform === 'epic' && currentGame.epicAppId) {
+      addToast('Launching game on Epic...', 'info')
+      const url = `com.epicgames.launcher://apps/${currentGame.epicAppId}?action=launch&silent=true`
+      ;(window as any).electron.openUrl(url)
+    } else {
+      addToast('Launching game on Steam...', 'info')
+      // Steam launch is handled by the href
+    }
     setTimeout(() => setIsLaunching(false), 5000)
   }
 
@@ -83,15 +90,17 @@ export const GameLibrary: React.FC<GameLibraryProps> = ({
           </div>
 
           <div className="flex items-center space-x-3">
-            {currentGame.steamAppId && (
+            {(currentGame.steamAppId || currentGame.epicAppId) && (
               <a
-                href={`steam://run/${currentGame.steamAppId}`}
+                href={currentGame.platform === 'steam' ? `steam://run/${currentGame.steamAppId}` : '#'}
                 draggable={false}
                 onClick={handlePlayClick}
                 className={`group px-4 py-2 bg-[rgb(var(--theme-accent))] hover:bg-[rgb(var(--theme-accent))]/80 text-white rounded-xl shadow-lg shadow-[rgb(var(--theme-accent))]/20 god-transition god-hover flex items-center space-x-2 no-underline active:scale-95 active:grayscale active:brightness-75 transition-all ${isLaunching ? 'opacity-50 grayscale cursor-wait pointer-events-none' : ''}`}
               >
                 <Gamepad2 className="w-5 h-5 fill-current drop-shadow-md" />
-                <span className="font-semibold drop-shadow-md">{t.playSteam}</span>
+                <span className="font-semibold drop-shadow-md">
+                  {currentGame.platform === 'epic' ? t.playEpic : t.playSteam}
+                </span>
               </a>
             )}
 

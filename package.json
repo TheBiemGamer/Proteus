@@ -1,6 +1,6 @@
 {
   "name": "proteus-mod-manager",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "Proteus - A highly modular mod manager written in React and TypeScript",
   "main": "./out/main/index.js",
   "author": "thebiemgamer",

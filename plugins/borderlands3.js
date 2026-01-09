@@ -29,17 +29,17 @@ module.exports.default = {
   detect: async (candidates) => {
     const path = require('path')
     for (const folder of candidates) {
-      // Common Steam path: steamapps/common/Borderlands 3
-      const check = path.join(
-        folder,
-        'Borderlands 3',
-        'OakGame',
-        'Binaries',
-        'Win64',
-        'Borderlands3.exe'
-      )
-      if (sandbox.manager.fileExists(check)) {
-        return path.join(folder, 'Borderlands 3')
+      // Steam
+      const steamPath = path.join(folder, 'Borderlands 3')
+      const steamExe = path.join(steamPath, 'OakGame', 'Binaries', 'Win64', 'Borderlands3.exe')
+      if (sandbox.manager.fileExists(steamExe)) {
+        return steamPath
+      }
+
+      // Epic
+      const epicExe = path.join(folder, 'OakGame', 'Binaries', 'Win64', 'Borderlands3.exe')
+      if (sandbox.manager.fileExists(epicExe)) {
+        return folder
       }
     }
     return null

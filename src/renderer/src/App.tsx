@@ -30,7 +30,8 @@ const TUTORIAL_GAME: Game = {
   managed: true,
   iconUrl: 'https://cdn2.steamgriddb.com/icon/03ff5913b0517be4231fee8f421f2699/32/256x256.png',
   theme: { accent: '34, 211, 238', bgStart: '12, 74, 110' },
-  modSources: []
+  modSources: [],
+  platform: 'steam'
 }
 
 const TUTORIAL_MODS: Mod[] = [

@@ -5,6 +5,8 @@ export interface Game {
   managed: boolean
   path: string
   steamAppId?: string
+  epicAppId?: string
+  platform: 'steam' | 'epic'
   iconUrl?: string
   toolButtons?: Array<{ label: string; action: string }>
   modSources?: Array<{ text: string; url: string }>

@@ -29,17 +29,17 @@ module.exports.default = {
   detect: async (candidates) => {
     const path = require('path')
     for (const folder of candidates) {
-      // Common Steam path: steamapps/common/Tiny Tina's Wonderlands
-      const check = path.join(
-        folder,
-        "Tiny Tina's Wonderlands",
-        'OakGame',
-        'Binaries',
-        'Win64',
-        'Wonderlands.exe'
-      )
-      if (sandbox.manager.fileExists(check)) {
-        return path.join(folder, "Tiny Tina's Wonderlands")
+      // Steam
+      const steamPath = path.join(folder, "Tiny Tina's Wonderlands")
+      const steamExe = path.join(steamPath, 'OakGame', 'Binaries', 'Win64', 'Wonderlands.exe')
+      if (sandbox.manager.fileExists(steamExe)) {
+        return steamPath
+      }
+
+      // Epic
+      const epicExe = path.join(folder, 'OakGame', 'Binaries', 'Win64', 'Wonderlands.exe')
+      if (sandbox.manager.fileExists(epicExe)) {
+        return folder
       }
     }
     return null

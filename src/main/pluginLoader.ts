@@ -10,6 +10,11 @@ import { listArchiveFiles, extractArchive } from './utils/archives'
 import { fetchNexusMetadata, checkNexusUpdate, validateModByHash } from './utils/nexus'
 import { ModpackManager } from './features/modpack'
 
+interface EpicGameInfo {
+  path: string
+  epicAppId: string
+}
+
 interface GameManifest {
   mods: IMod[]
   managed: boolean
@@ -33,6 +38,8 @@ export class PluginManager extends EventEmitter {
   private sandboxErrors: Error[] = [] // Track errors during sandbox execution
 
   private nexusApiKey = ''
+  private epicGamesManifestDir = 'C:\\ProgramData\\Epic\\EpicGamesLauncher\\Data\\Manifests'
+  private epicGames: Record<string, EpicGameInfo> = {}
   private deploymentMethod: 'symlink' | 'hardlink' | 'copy' = 'symlink'
   private repairedGames = new Set<string>()
 
@@ -58,6 +65,7 @@ export class PluginManager extends EventEmitter {
     this.settingsPath = path.join(userData, 'game-paths.json')
 
     this.loadSettings()
+    this.detectEpicGames().then((games) => (this.epicGames = games))
 
     // Initialize Helpers
     this.modpackManager = new ModpackManager({
@@ -456,8 +464,38 @@ export class PluginManager extends EventEmitter {
 
   // --- API ---
 
+  private async detectEpicGames(): Promise<Record<string, EpicGameInfo>> {
+    const epicGames: Record<string, EpicGameInfo> = {}
+    if (fs.existsSync(this.epicGamesManifestDir)) {
+      const files = fs.readdirSync(this.epicGamesManifestDir)
+      for (const file of files) {
+        if (path.extname(file) === '.item') {
+          try {
+            const manifest = JSON.parse(
+              fs.readFileSync(path.join(this.epicGamesManifestDir, file), 'utf8')
+            )
+            if (
+              manifest.AppName &&
+              manifest.InstallLocation &&
+              manifest.CatalogNamespace &&
+              manifest.CatalogItemId
+            ) {
+              const epicAppId = `${manifest.CatalogNamespace}%3A${manifest.CatalogItemId}%3A${manifest.AppName}`
+              epicGames[manifest.AppName] = {
+                path: manifest.InstallLocation,
+                epicAppId
+              }
+            }
+          } catch {}
+        }
+      }
+    }
+    return epicGames
+  }
+
   async autoDetectGames() {
     const candidates = [
+      ...Object.values(this.epicGames).map((g) => g.path),
       'C:\\Program Files (x86)\\Steam\\steamapps\\common',
       'C:\\Program Files\\Steam\\steamapps\\common',
       'D:\\SteamLibrary\\steamapps\\common',
@@ -484,6 +522,9 @@ export class PluginManager extends EventEmitter {
 
         const name = String(plugin.name)
         const steamAppId = plugin.steamAppId ? String(plugin.steamAppId) : undefined
+        const epicGameInfo = this.epicGames[plugin.name]
+        const platform = epicGameInfo ? 'epic' : 'steam'
+        const epicAppId = epicGameInfo ? epicGameInfo.epicAppId : undefined
         const iconUrl = (plugin as any).iconUrl ? String((plugin as any).iconUrl) : undefined
 
         let modSources: { text: string; url: string }[] | undefined
@@ -518,6 +559,8 @@ export class PluginManager extends EventEmitter {
           managed: manifest.managed,
           path: this.gamePaths[id],
           steamAppId,
+          epicAppId,
+          platform,
           iconUrl,
           modSources,
           theme,
@@ -621,6 +664,43 @@ export class PluginManager extends EventEmitter {
 
     manifest = this.readManifest(gameId)
     return this.getGamesWithDetails()
+  }
+
+  async addGame(gameId: string, gameName: string, executablePath: string) {
+    const pluginPath = path.join(this.pluginsDir, `${gameId}.js`)
+    if (fs.existsSync(pluginPath)) {
+      return { success: false, error: 'A plugin for this game already exists.' }
+    }
+
+    const pluginContent = `
+module.exports.default = {
+  id: '${gameId}',
+  name: '${gameName}',
+  executable: '${path.basename(executablePath)}',
+  version: '1.0.0',
+  author: 'User',
+  detect: async (candidates) => {
+    const path = require('path')
+    for (const folder of candidates) {
+      const check = path.join(folder, '${path.basename(executablePath)}')
+      if (sandbox.manager.fileExists(check)) {
+        return folder
+      }
+    }
+    return null
+  }
+}
+`
+
+    try {
+      fs.writeFileSync(pluginPath, pluginContent)
+      this.gamePaths[gameId] = path.dirname(executablePath)
+      this.saveSettings()
+      this.loadPlugins()
+      return { success: true }
+    } catch (e: any) { 
+      return { success: false, error: e.message }
+    }
   }
 
   async unmanageGame(gameId: string) {

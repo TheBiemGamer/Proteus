@@ -1,5 +1,5 @@
 import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
-import { join } from 'path'
+import path, { join } from 'path'
 import fs from 'fs'
 import { exec } from 'child_process'
 import sudo from '@expo/sudo-prompt'
@@ -417,6 +417,21 @@ if (!gotTheLock) {
 
     ipcMain.handle('toggle-extension', async (_, id, enabled) => {
       return await pluginManager.toggleExtension(id, enabled)
+    })
+
+    ipcMain.handle('add-game', async () => {
+      const { canceled, filePaths } = await dialog.showOpenDialog({
+        properties: ['openFile'],
+        filters: [{ name: 'Executable', extensions: ['exe'] }]
+      })
+
+      if (canceled || filePaths.length === 0) return { canceled: true }
+
+      const filePath = filePaths[0]
+      const gameName = path.basename(filePath, '.exe')
+      const gameId = gameName.toLowerCase().replace(/\s/g, '')
+
+      return await pluginManager.addGame(gameId, gameName, filePath)
     })
 
     ipcMain.handle('delete-extension', async (_, id) => {

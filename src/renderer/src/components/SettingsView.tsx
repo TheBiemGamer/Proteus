@@ -23,6 +23,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 }) => {
   const [settingsTab, setSettingsTab] = useState<'general' | 'extensions' | 'about'>('general')
 
+  const handleAddGame = async () => {
+    const result = await (window as any).electron.addGame()
+    if (result.success) {
+      addToast('Game added successfully', 'success')
+      refreshGames()
+    } else if (result.error) {
+      addToast(result.error, 'error')
+    }
+  }
+
   return (
     <div className="flex-1 p-8 overflow-y-auto">
       <h2 className="text-3xl font-bold text-white mb-8">{t.settings}</h2>
@@ -73,9 +83,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         <div className="max-w-2xl space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500 god-transition">
           {/* General Section */}
           <div className="space-y-4">
-            <h3 className="text-xl font-semibold text-gray-300 border-b border-white/10 pb-2">
-              {t.general}
-            </h3>
+            <div className="flex justify-between items-center border-b border-white/10 pb-2">
+              <h3 className="text-xl font-semibold text-gray-300">{t.general}</h3>
+              <button
+                onClick={handleAddGame}
+                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl shadow-lg border border-white/5 font-semibold god-transition god-hover flex items-center space-x-2"
+              >
+                <span>Add Game</span>
+              </button>
+            </div>
 
             <div className="flex flex-col space-y-2">
               <label className="text-sm font-medium text-gray-400">{t.language}</label>

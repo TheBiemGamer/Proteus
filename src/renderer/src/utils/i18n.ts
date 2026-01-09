@@ -13,6 +13,7 @@ export const translations = {
     installMod: 'Install Mod',
     browseFolder: 'Browse Folder',
     playSteam: 'Play on Steam',
+    playEpic: 'Play on Epic',
     ready: 'Ready',
     missing: 'Missing',
     total: 'Total',
