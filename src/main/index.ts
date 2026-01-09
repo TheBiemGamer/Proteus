@@ -1,5 +1,6 @@
 import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'path'
+import fs from 'fs'
 import { exec } from 'child_process'
 import sudo from '@expo/sudo-prompt'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -151,37 +152,26 @@ async function checkAndPromptForAdmin(
 const gotTheLock = app.requestSingleInstanceLock()
 
 if (!gotTheLock) {
-  // If we failed to get the lock, another instance is running.
-  // Check if we need to escalate to communicate with it (UIPI bypass).
   const settings = settingsManager.get()
 
   if (process.platform === 'win32' && settings.alwaysRunAsAdmin) {
-    // We need to check if WE are admin. If not, relaunch as admin.
-    isWindowsAdmin().then((isAdmin) => {
-      if (!isAdmin) {
-        console.log(
-          'Second instance detected (User), but main instance is likely Admin. Relaunching as Admin to bridge signal...'
-        )
-        const exe = app.getPath('exe')
-        const args = process.argv
-          .slice(1)
-          .map((arg) => `"${arg.replace(/"/g, '\\"')}"`)
-          .join(' ')
+    // UIPI Bypass: Write to signal file instead of escalating to avoid UAC prompt
+    const file = process.argv.find((arg) =>
+      ['.pmm-pack', '.modpack', '.pmm-ext', '.modmanager'].some((ext) =>
+        arg.toLowerCase().endsWith(ext)
+      )
+    )
 
-        const command = `cmd /c start "" "${exe}" ${args}`
-
-        sudo.exec(command, { name: 'Proteus Mod Manager' }, () => {
-          app.exit(0)
-        })
-      } else {
-        // We are admin, but lock failed? That means another Admin instance is running.
-        // The 'second-instance' event should have fired on the main process.
-        app.quit()
+    if (file) {
+      try {
+        const signalPath = join(app.getPath('userData'), 'ipc-signal.json')
+        fs.writeFileSync(signalPath, JSON.stringify({ filePath: file }))
+      } catch (e) {
+        console.error('Failed to signal main instance', e)
       }
-    })
-  } else {
-    app.quit()
+    }
   }
+  app.quit()
 } else {
   app.on('second-instance', (_event, commandLine) => {
     const mainWindow = BrowserWindow.getAllWindows()[0]
@@ -204,6 +194,46 @@ if (!gotTheLock) {
     .then(() => {
     // Set app user model id for windows
     electronApp.setAppUserModelId('com.biem.proteus')
+
+    // Setup File Watcher for UIPI Bypass (User -> Admin signal)
+    const signalPath = join(app.getPath('userData'), 'ipc-signal.json')
+    if (!fs.existsSync(signalPath)) {
+      try {
+        fs.writeFileSync(signalPath, JSON.stringify({}))
+      } catch (e) {
+        console.error('Failed to init signal file', e)
+      }
+    }
+
+    try {
+      fs.watch(signalPath, (eventType) => {
+        if (eventType === 'change') {
+          try {
+            // readFileSync can fail if file is locked or empty during write
+            // Retry logic or simple ignore is usually okay for this IPC
+            const content = fs.readFileSync(signalPath, 'utf-8')
+            if (!content) return
+            const data = JSON.parse(content)
+            if (data.filePath) {
+              const wins = BrowserWindow.getAllWindows()
+              if (wins.length > 0) {
+                const win = wins[0]
+                if (win.isMinimized()) win.restore()
+                win.focus()
+                win.webContents.send('open-file', data.filePath)
+                
+                // Clear signal to prevent loops/re-reads
+                fs.writeFileSync(signalPath, JSON.stringify({}))
+              }
+            }
+          } catch (e) {
+            // Ignore read/parse errors (e.g. file busy)
+          }
+        }
+      })
+    } catch (e) {
+      console.error('Failed to setup file watcher', e)
+    }
 
     // load plugins
     pluginManager.loadPlugins()
