@@ -18,7 +18,7 @@ fileAssociations:
     icon: build/icon.ico
   - ext: pmm-ext
     name: Proteus Extension
-    description: Extension/Plugin for Proteus Mod Manager
+    description: Extension for Proteus Mod Manager
     icon: build/icon.ico
 extraResources:
   - plugins/**
